@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ event.name }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .event-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .event-icon {
+            font-size: 64px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .detail {
+            display: flex;
+            align-items: flex-start;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .detail-content h3 {
+            color: #4a5568;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .detail-content p {
+            color: #2d3748;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+
+        .description {
+            margin-top: 30px;
+            padding: 20px;
+            background: #edf2f7;
+            border-radius: 10px;
+        }
+
+        .description h3 {
+            color: #4a5568;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .description p {
+            color: #2d3748;
+            font-size: 16px;
+            line-height: 1.8;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .action-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            text-align: center;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 20px;
+            font-size: 18px;
+            border: none;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .action-btn:hover {
+            background: #5a67d8;
+        }
+
+        .camera-container {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        video,
+        canvas {
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .photos-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .photos-grid img {
+            width: 100%;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 600px) {
+            .event-container {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .detail-content p {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="event-container">
+        <div class="event-icon">🎉</div>
+        <h1>{{ event.name }}</h1>
+
+        <div class="detail">
+            <div class="detail-icon">📅</div>
+            <div class="detail-content">
+                <h3>Date & Time</h3>
+                <p id="eventDate">{{ event.date }}</p>
+            </div>
+        </div>
+
+        <div class="detail">
+            <div class="detail-icon">📍</div>
+            <div class="detail-content">
+                <h3>Location</h3>
+                <p>{{ event.location }}</p>
+            </div>
+        </div>
+
+        {% if event.description %}
+        <div class="description">
+            <h3>About This Event</h3>
+            <p>{{ event.description }}</p>
+        </div>
+        {% endif %}
+
+        <div class="find-me-section">
+            <button class="action-btn" onclick="openCamera()">📸 Find My Photos</button>
+
+            <div class="camera-container" id="cameraUI">
+                <video id="video" autoplay playsinline></video>
+                <canvas id="canvas" style="display:none"></canvas>
+                <button class="action-btn" onclick="takeSnapshot()">Capture & Search</button>
+                <button class="action-btn" style="background:#e53e3e" onclick="closeCamera()">Cancel</button>
+            </div>
+
+            <div id="loading" style="display:none; text-align:center; margin-top:20px;">
+                <p>🔍 Integrating AI matching...</p>
+                <p>This checks all event photos for your face.</p>
+            </div>
+
+            <div id="results" class="photos-grid"></div>
+        </div>
+
+        <div class="footer">
+            <p>Event ID: #{{ event.id }}</p>
+        </div>
+    </div>
+
+    <script>
+        // Format the date nicely
+        const dateElement = document.getElementById('eventDate');
+        const dateString = '{{ event.date }}';
+        const date = new Date(dateString);
+        dateElement.textContent = date.toLocaleString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        // Camera Logic
+        let stream = null;
+
+        async function openCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                document.getElementById('cameraUI').style.display = 'block';
+            } catch (err) {
+                alert('Camera access denied or not available');
+            }
+        }
+
+        function closeCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            document.getElementById('cameraUI').style.display = 'none';
+        }
+
+        async function takeSnapshot() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to file
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('selfie', blob, 'selfie.jpg');
+
+                closeCamera();
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('results').innerHTML = '';
+
+                try {
+                    const response = await fetch('/api/events/{{ event.id }}/find_me', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+
+                    if (result.matches && result.matches.length > 0) {
+                        const photosHtml = result.matches.map(url => `
+                            <div>
+                                <a href="${url}" download>
+                                    <img src="${url}" alt="Matched Photo">
+                                </a>
+                                <a href="${url}" download class="btn" style="display:block; text-align:center; margin-top:5px; text-decoration:none; color:#667eea; font-weight:bold;">⬇ Download</a>
+                            </div>
+                        `).join('');
+                        document.getElementById('results').innerHTML = photosHtml;
+                        alert(`Found ${result.matches.length} photos of you!`);
+                    } else {
+                        alert('No matching photos found.');
+                    }
+                } catch (error) {
+                    alert('Error matching face: ' + error.message);
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }, 'image/jpeg');
+        }
+    </script>
+</body>
+
+</html>

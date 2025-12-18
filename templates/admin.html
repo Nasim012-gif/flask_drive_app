@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Admin Panel</title>
+    <link rel="stylesheet" href="/static/admin.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Event Management Admin Panel</h1>
+            <p>Create events and generate QR codes</p>
+        </header>
+
+        <!-- Event Creation Form -->
+        <section class="form-section">
+            <h2>Create New Event</h2>
+            <form id="eventForm">
+                <div class="form-group">
+                    <label for="eventName">Event Name *</label>
+                    <input type="text" id="eventName" required placeholder="Tech Conference 2025">
+                </div>
+
+                <div class="form-group">
+                    <label for="eventDate">Date & Time *</label>
+                    <input type="datetime-local" id="eventDate" required">
+                </div>
+
+                <div class="form-group">
+                    <label for="eventLocation">Location *</label>
+                    <input type="text" id="eventLocation" required placeholder="San Francisco Convention Center">
+                </div>
+
+                <div class="form-group">
+                    <label for="eventDescription">Description</label>
+                    <textarea id="eventDescription" rows="4" placeholder="Event details..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary">Create Event & Generate QR Code</button>
+            </form>
+        </section>
+
+        <!-- Events List -->
+        <section class="events-section">
+            <h2>All Events</h2>
+            <div id="eventsList" class="events-grid">
+                <p class="loading">Loading events...</p>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // Load events on page load
+        document.addEventListener('DOMContentLoaded', loadEvents);
+
+        // Handle form submission
+        document.getElementById('eventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const eventData = {
+                name: document.getElementById('eventName').value,
+                date: document.getElementById('eventDate').value,
+                location: document.getElementById('eventLocation').value,
+                description: document.getElementById('eventDescription').value
+            };
+
+            try {
+                const response = await fetch('/api/events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(eventData)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert('Event created successfully!');
+                    document.getElementById('eventForm').reset();
+                    loadEvents(); // Reload events list
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error creating event: ' + error.message);
+            }
+        });
+
+        // Load and display events
+        async function loadEvents() {
+            try {
+                const response = await fetch('/api/events');
+                const result = await response.json();
+
+                const eventsList = document.getElementById('eventsList');
+
+                if (result.events && result.events.length > 0) {
+                    eventsList.innerHTML = result.events.map(event => `
+                        <div class="event-card">
+                            <div class="event-info">
+                                <h3>${event.name}</h3>
+                                <p class="event-date">📅 ${formatDate(event.date)}</p>
+                                <p class="event-location">📍 ${event.location}</p>
+                                ${event.description ? `<p class="event-description">${event.description}</p>` : ''}
+                            </div>
+                            <div class="event-qr">
+                                <img src="/api/events/${event.id}/qr" alt="QR Code for ${event.name}" class="qr-code">
+                                <div class="event-actions">
+                                    <a href="/api/events/${event.id}/qr" download="event_${event.id}_qr.png" class="btn btn-small">Download QR</a>
+                                    <a href="/event/${event.id}" target="_blank" class="btn btn-small btn-secondary">View Event</a>
+                                    <button onclick="document.getElementById('upload_${event.id}').click()" class="btn btn-small btn-secondary">Upload Photos</button>
+                                    <input type="file" id="upload_${event.id}" multiple accept="image/*" style="display:none" onchange="uploadPhotos(${event.id}, this)">
+                                    <button onclick="deleteEvent(${event.id})" class="btn btn-small btn-danger">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    eventsList.innerHTML = '<p class="no-events">No events created yet. Create your first event above!</p>';
+                }
+            } catch (error) {
+                document.getElementById('eventsList').innerHTML = '<p class="error">Error loading events</p>';
+            }
+        }
+
+        // Upload photos
+        async function uploadPhotos(eventId, input) {
+            if (input.files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < input.files.length; i++) {
+                formData.append('photos', input.files[i]);
+            }
+
+            const btn = input.previousElementSibling;
+            const originalText = btn.innerText;
+            btn.innerText = 'Uploading...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/events/${eventId}/photos`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`Success: ${result.message}`);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error uploading photos: ' + error.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                input.value = ''; // clear input
+            }
+        }
+
+        // Delete event
+        async function deleteEvent(eventId) {
+            if (!confirm('Are you sure you want to delete this event?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/events/${eventId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    alert('Event deleted successfully');
+                    loadEvents();
+                } else {
+                    const result = await response.json();
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error deleting event: ' + error.message);
+            }
+        }
+
+        // Format date for display
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+    </script>
+</body>
+
+</html>
