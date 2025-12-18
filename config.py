@@ -24,11 +24,11 @@ class Config:
     # File paths
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     
-    # Render specific persistent data path
-    DATA_DIR = os.environ.get('RENDER_DATA_DIR', '/data') if os.environ.get('RENDER') else BASE_DIR
+    # Use BASE_DIR for local data on free tier (resets on restart)
+    DATA_DIR = BASE_DIR
     
     CREDENTIALS_FILE = os.path.join(BASE_DIR, 'credentials.json')
-    TOKEN_FILE = os.path.join(DATA_DIR, 'token.json') # Token should survive redeploys
+    TOKEN_FILE = os.path.join(DATA_DIR, 'token.json') 
     DB_PATH = os.path.join(DATA_DIR, 'events.db')
     
     # Asset paths
