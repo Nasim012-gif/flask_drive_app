@@ -390,6 +390,7 @@ def create_event():
 @app.route('/api/events/<int:event_id>', methods=['GET'])
 def get_event(event_id):
     """Get event details."""
+    maybe_sync_db('pull')
     try:
         event = events_db.get_event(event_id)
         
@@ -407,6 +408,7 @@ def get_event(event_id):
 @app.route('/api/events/<int:event_id>/qr', methods=['GET'])
 def get_event_qr(event_id):
     """Get QR code for an event."""
+    maybe_sync_db('pull')
     try:
         event = events_db.get_event(event_id)
         
@@ -476,6 +478,7 @@ if not os.path.exists(PHOTOS_DIR):
 @app.route('/api/events/<int:event_id>/photos', methods=['POST'])
 def upload_event_photos(event_id):
     """Admin upload of event photos."""
+    maybe_sync_db('pull')
     print(f"DEBUG: Photo upload started for event {event_id}")
     try:
         # Check if event exists
@@ -524,6 +527,7 @@ def upload_event_photos(event_id):
 @app.route('/api/events/<int:event_id>/find_me', methods=['POST'])
 def find_my_photos(event_id):
     """Guest face matching endpoint."""
+    maybe_sync_db('pull')
     try:
         if 'selfie' not in request.files:
             return jsonify({'error': 'No selfie provided'}), 400
