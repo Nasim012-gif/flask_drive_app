@@ -26,6 +26,31 @@ CORS(app)
 # Initialize database
 events_db.init_db()
 
+# Keep track of database sync status
+_db_pulled = False
+
+def maybe_sync_db(direction='pull'):
+    """Helper to sync database with Google Drive if authenticated."""
+    # Only perform sync on production (Render)
+    if not os.environ.get('RENDER'):
+        return
+        
+    service = drive_service.get_drive_service()
+    if not service:
+        # Silently skip if not authenticated yet
+        return
+        
+    global _db_pulled
+    if direction == 'pull':
+        if not _db_pulled:
+            print("DEBUG: Pulling DB from Drive persistence...")
+            if drive_service.sync_db_from_drive(service, config.DB_PATH):
+                _db_pulled = True
+    else:
+        # direction is 'push'
+        print("DEBUG: Pushing DB to Drive persistence...")
+        drive_service.sync_db_to_drive(service, config.DB_PATH)
+
 def get_base_url():
     """Helper to get the base URL for the application."""
     # Priority 1: Environment variable (useful for production)
@@ -47,6 +72,7 @@ def get_base_url():
 @app.route('/')
 def index():
     """Health check endpoint."""
+    maybe_sync_db('pull')
     return jsonify({
         'status': 'ok',
         'message': 'Flask Google Drive API is running',
@@ -305,12 +331,14 @@ def search_files():
 @app.route('/admin')
 def admin_panel():
     """Admin panel for event management."""
+    maybe_sync_db('pull')
     return render_template('admin.html')
 
 
 @app.route('/api/events', methods=['GET'])
 def list_events():
     """List all events."""
+    maybe_sync_db('pull')
     try:
         events = events_db.get_all_events()
         return jsonify({
@@ -345,6 +373,9 @@ def create_event():
         # Generate QR code
         qr_path = qr_generator.generate_event_qr(event_id, base_url=get_base_url())
         events_db.update_event_qr_path(event_id, qr_path)
+        
+        # Sync to Drive
+        maybe_sync_db('push')
         
         return jsonify({
             'status': 'success',
@@ -410,6 +441,9 @@ def delete_event_route(event_id):
         # Delete event from database
         events_db.delete_event(event_id)
         
+        # Sync to Drive
+        maybe_sync_db('push')
+        
         return jsonify({
             'status': 'success',
             'message': f'Event {event_id} deleted successfully'
@@ -421,6 +455,7 @@ def delete_event_route(event_id):
 @app.route('/event/<int:event_id>')
 def view_event(event_id):
     """Public event details page (for QR code redirect)."""
+    maybe_sync_db('pull')
     event = events_db.get_event(event_id)
     
     if not event:
@@ -473,6 +508,9 @@ def upload_event_photos(event_id):
             events_db.add_event_photo(event_id, filename, file_path)
             uploaded_count += 1
             print(f"DEBUG: Successfully saved {filename}")
+
+        # Sync to Drive
+        maybe_sync_db('push')
 
         return jsonify({
             'status': 'success',

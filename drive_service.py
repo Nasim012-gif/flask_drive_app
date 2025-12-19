@@ -300,3 +300,66 @@ def search_files(service, query):
         List of file metadata dictionaries.
     """
     return list_files(service, page_size=100, query=query)
+
+
+def sync_db_to_drive(service, local_db_path, drive_filename="events_db_persistence.db"):
+    """
+    Upload or update the local database file to Google Drive.
+    """
+    try:
+        # Search for existing file
+        query = f"name = '{drive_filename}' and trashed = false"
+        results = search_files(service, query)
+        
+        media = MediaFileUpload(local_db_path, mimetype='application/x-sqlite3', resumable=True)
+        
+        if results:
+            # Update existing file
+            file_id = results[0]['id']
+            service.files().update(
+                fileId=file_id,
+                media_body=media
+            ).execute()
+            print(f"DEBUG: Updated existing DB on Drive (ID: {file_id})")
+            return file_id
+        else:
+            # Create new file
+            file_metadata = {'name': drive_filename}
+            file = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields='id'
+            ).execute()
+            print(f"DEBUG: Created new DB on Drive (ID: {file['id']})")
+            return file['id']
+    except Exception as e:
+        print(f"Error syncing DB to Drive: {e}")
+        return None
+
+
+def sync_db_from_drive(service, local_db_path, drive_filename="events_db_persistence.db"):
+    """
+    Download the database file from Google Drive if it exists.
+    """
+    try:
+        query = f"name = '{drive_filename}' and trashed = false"
+        results = search_files(service, query)
+        
+        if not results:
+            print("DEBUG: No persistence DB found on Drive.")
+            return False
+            
+        file_id = results[0]['id']
+        request = service.files().get_media(fileId=file_id)
+        
+        with io.FileIO(local_db_path, 'wb') as fh:
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+        
+        print(f"DEBUG: Successfully downloaded DB from Drive (ID: {file_id})")
+        return True
+    except Exception as e:
+        print(f"Error syncing DB from Drive: {e}")
+        return False
