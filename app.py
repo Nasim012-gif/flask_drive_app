@@ -510,6 +510,9 @@ def upload_event_photos(event_id):
         if not os.path.exists(event_dir):
             os.makedirs(event_dir)
 
+        # Get Drive service for backup
+        service = drive_service.get_drive_service()
+
         for photo in photos:
             if photo.filename == '':
                 continue
@@ -519,10 +522,16 @@ def upload_event_photos(event_id):
             print(f"DEBUG: Saving photo {filename}")
             photo.save(file_path)
             
+            # Backup to Google Drive
+            drive_id = None
+            if service:
+                print(f"DEBUG: Syncing {filename} to Google Drive...")
+                drive_id = drive_service.sync_photo_to_drive(service, file_path, event_id)
+            
             # Add to database
-            events_db.add_event_photo(event_id, filename, file_path)
+            events_db.add_event_photo(event_id, filename, file_path, drive_id)
             uploaded_count += 1
-            print(f"DEBUG: Successfully saved {filename}")
+            print(f"DEBUG: Successfully saved {filename} (Drive ID: {drive_id})")
 
         # Sync to Drive
         maybe_sync_db('push')
@@ -557,9 +566,21 @@ def find_my_photos(event_id):
             if not db_photos:
                 return jsonify({'matches': []})
 
-            # Extract local paths
-            target_paths = [p['local_path'] for p in db_photos]
+            # Ensure all photos exist locally (they might have been wiped)
+            service = drive_service.get_drive_service()
+            for p in db_photos:
+                if not os.path.exists(p['local_path']):
+                    print(f"DEBUG: Photo {p['filename']} missing locally. Attempting to restore from Drive...")
+                    if service:
+                        drive_service.download_photo_from_drive(service, p['filename'], event_id, p['local_path'])
+
+            # Extract local paths (only for files that actually exist)
+            target_paths = [p['local_path'] for p in db_photos if os.path.exists(p['local_path'])]
             
+            if not target_paths:
+                print("DEBUG: No local photos found and restore failed.")
+                return jsonify({'matches': []})
+                
             # Perform face matching
             matches = face_service.verify_face(selfie_path, target_paths)
             

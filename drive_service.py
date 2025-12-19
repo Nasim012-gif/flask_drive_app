@@ -363,3 +363,97 @@ def sync_db_from_drive(service, local_db_path, drive_filename="events_db_persist
     except Exception as e:
         print(f"Error syncing DB from Drive: {e}")
         return False
+
+
+def get_or_create_folder(service, folder_name, parent_id=None):
+    """
+    Find or create a folder in Google Drive.
+    """
+    try:
+        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        if parent_id:
+            query += f" and '{parent_id}' in parents"
+            
+        results = search_files(service, query)
+        if results:
+            return results[0]['id']
+            
+        file_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder'
+        }
+        if parent_id:
+            file_metadata['parents'] = [parent_id]
+            
+        file = service.files().create(body=file_metadata, fields='id').execute()
+        return file.get('id')
+    except Exception as e:
+        print(f"Error getting/creating folder {folder_name}: {e}")
+        return None
+
+
+def sync_photo_to_drive(service, file_path, event_id):
+    """
+    Upload a photo to Drive under a specific event folder.
+    """
+    try:
+        # 1. Get/Create "Event Photos" root folder
+        root_folder_id = get_or_create_folder(service, "Event Photos Persistence")
+        if not root_folder_id:
+            return None
+            
+        # 2. Get/Create folder for this specific event
+        event_folder_id = get_or_create_folder(service, f"Event_{event_id}", parent_id=root_folder_id)
+        if not event_folder_id:
+            return None
+            
+        # 3. Upload the photo
+        file_name = os.path.basename(file_path)
+        # Check if already exists to avoid duplicates
+        query = f"name = '{file_name}' and '{event_folder_id}' in parents and trashed = false"
+        results = search_files(service, query)
+        
+        if results:
+            return results[0]['id']
+            
+        result = upload_file(service, file_path, file_name=file_name, folder_id=event_folder_id)
+        return result.get('id') if result else None
+    except Exception as e:
+        print(f"Error syncing photo {file_path} to Drive: {e}")
+        return None
+
+
+def download_photo_from_drive(service, filename, event_id, target_path):
+    """
+    Find and download a photo from its event folder on Drive.
+    """
+    try:
+        root_folder_id = get_or_create_folder(service, "Event Photos Persistence")
+        if not root_folder_id:
+            return False
+            
+        event_folder_id = get_or_create_folder(service, f"Event_{event_id}", parent_id=root_folder_id)
+        if not event_folder_id:
+            return False
+            
+        query = f"name = '{filename}' and '{event_folder_id}' in parents and trashed = false"
+        results = search_files(service, query)
+        
+        if not results:
+            return False
+            
+        file_id = results[0]['id']
+        request = service.files().get_media(fileId=file_id)
+        
+        # Ensure target directory exists
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        
+        with io.FileIO(target_path, 'wb') as fh:
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+        return True
+    except Exception as e:
+        print(f"Error downloading photo {filename} from Drive: {e}")
+        return False
