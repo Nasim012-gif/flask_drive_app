@@ -441,6 +441,7 @@ if not os.path.exists(PHOTOS_DIR):
 @app.route('/api/events/<int:event_id>/photos', methods=['POST'])
 def upload_event_photos(event_id):
     """Admin upload of event photos."""
+    print(f"DEBUG: Photo upload started for event {event_id}")
     try:
         # Check if event exists
         event = events_db.get_event(event_id)
@@ -451,6 +452,7 @@ def upload_event_photos(event_id):
             return jsonify({'error': 'No photos provided'}), 400
 
         photos = request.files.getlist('photos')
+        print(f"DEBUG: Received {len(photos)} photos")
         uploaded_count = 0
         
         # Ensure event directory exists
@@ -464,12 +466,13 @@ def upload_event_photos(event_id):
                 
             filename = secure_filename(photo.filename)
             file_path = os.path.join(event_dir, filename)
+            print(f"DEBUG: Saving photo {filename}")
             photo.save(file_path)
             
             # Add to database
-            # In a real app, we would also upload to Drive here in background
             events_db.add_event_photo(event_id, filename, file_path)
             uploaded_count += 1
+            print(f"DEBUG: Successfully saved {filename}")
 
         return jsonify({
             'status': 'success',
