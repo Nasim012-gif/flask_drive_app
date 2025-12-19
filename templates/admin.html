@@ -196,8 +196,12 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    alert(`Success: ${result.message}`);
-                    loadEvents(); // Refresh list to show updated photo counts if implemented
+                    let msg = `Success: ${result.message}`;
+                    if (result.cloud_sync_active === false) {
+                        msg += "\n\n⚠️ WARNING: Photos were NOT saved to Google Drive. Please go to /auth and log in again to enable permanent storage.";
+                    }
+                    alert(msg);
+                    loadEvents();
                 } else {
                     alert('Error: ' + result.error);
                 }

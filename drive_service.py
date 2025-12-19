@@ -155,10 +155,12 @@ def get_drive_service():
     creds = get_credentials()
     
     if not creds:
+        print("DEBUG: Google credentials not found or expired.")
         return None
     
     try:
         service = build('drive', 'v3', credentials=creds)
+        print("DEBUG: Google Drive service built successfully.")
         return service
     except Exception as e:
         print(f"Error building Drive service: {e}")
@@ -397,15 +399,21 @@ def sync_photo_to_drive(service, file_path, event_id):
     Upload a photo to Drive under a specific event folder.
     """
     try:
+        print(f"DEBUG: sync_photo_to_drive called for {file_path}")
         # 1. Get/Create "Event Photos" root folder
         root_folder_id = get_or_create_folder(service, "Event Photos Persistence")
         if not root_folder_id:
+            print("DEBUG: Failed to get/create root persistence folder.")
             return None
             
+        print(f"DEBUG: Root folder ID: {root_folder_id}")
         # 2. Get/Create folder for this specific event
         event_folder_id = get_or_create_folder(service, f"Event_{event_id}", parent_id=root_folder_id)
         if not event_folder_id:
+            print(f"DEBUG: Failed to get/create event folder for {event_id}")
             return None
+            
+        print(f"DEBUG: Event folder ID: {event_folder_id}")
             
         # 3. Upload the photo
         file_name = os.path.basename(file_path)

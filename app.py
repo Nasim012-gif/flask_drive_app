@@ -539,7 +539,8 @@ def upload_event_photos(event_id):
         return jsonify({
             'status': 'success',
             'message': f'Uploaded {uploaded_count} photos',
-            'count': uploaded_count
+            'count': uploaded_count,
+            'cloud_sync_active': service is not None
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
