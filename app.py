@@ -573,14 +573,22 @@ def find_my_photos(event_id):
                 if not os.path.exists(p['local_path']):
                     print(f"DEBUG: Photo {p['filename']} missing locally. Attempting to restore from Drive...")
                     if service:
-                        drive_service.download_photo_from_drive(service, p['filename'], event_id, p['local_path'])
+                        restored = drive_service.download_photo_from_drive(service, p['filename'], event_id, p['local_path'])
+                        print(f"DEBUG: Restore result for {p['filename']}: {restored}")
+                    else:
+                        print(f"DEBUG: Skipping restore for {p['filename']} - Google service not authenticated.")
 
             # Extract local paths (only for files that actually exist)
             target_paths = [p['local_path'] for p in db_photos if os.path.exists(p['local_path'])]
+            print(f"DEBUG: Scannable photos found: {len(target_paths)} of {len(db_photos)}")
             
             if not target_paths:
                 print("DEBUG: No local photos found and restore failed.")
-                return jsonify({'matches': []})
+                return jsonify({
+                    'status': 'no_photos',
+                    'matches': [],
+                    'message': 'No photos available on server. Try logging in to Google to restore them.'
+                })
                 
             # Perform face matching
             matches = face_service.verify_face(selfie_path, target_paths)

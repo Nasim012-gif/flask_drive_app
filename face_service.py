@@ -43,11 +43,20 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
     if not valid_targets:
         return []
 
-    print(f"Starting face matching for {len(valid_targets)} photos...")
+    print(f"DEBUG: Starting face matching for {len(valid_targets)} photos...")
     
+    # Clean up any existing DeepFace pickle cache to ensure a fresh scan
+    # (Fixes issues on ephemeral storage where indices might be corrupt)
+    try:
+        db_path = os.path.dirname(valid_targets[0])
+        for pkl_file in glob.glob(os.path.join(db_path, "*.pkl")):
+            os.remove(pkl_file)
+            print(f"DEBUG: Removed old face index cache: {pkl_file}")
+    except:
+        pass
+
     try:
         # Use DeepFace.find() which is optimized for 1-to-many search
-        # It returns a list of pandas DataFrames
         result = df.find(
             img_path=source_img_path,
             db_path=os.path.dirname(valid_targets[0]), # Folder containing images
@@ -57,16 +66,23 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
             silent=True
         )
         
+        print(f"DEBUG: DeepFace.find result: {result}")
+        
         if result and len(result) > 0:
             # Result[0] is the DataFrame for the first (and only) source image
             df_matches = result[0]
             if not df_matches.empty:
+                print(f"DEBUG: Found {len(df_matches)} potential matches in DataFrame.")
                 # Get the 'identity' column which contains the matching file paths
                 matched_identities = df_matches['identity'].tolist()
                 
                 # Filter to ensure we only return paths that were in our target list
-                # (though db_path usually restricts this, good for safety)
                 matches = [path for path in matched_identities if path in valid_targets]
+                print(f"DEBUG: Matches after filtering: {len(matches)}")
+            else:
+                print("DEBUG: DataFrame is empty - no matches found.")
+        else:
+             print("DEBUG: result is None or empty list.")
                 
     except Exception as e:
         print(f"DeepFace matching error: {str(e)}")
