@@ -80,6 +80,10 @@ def get_event(event_id):
             (event_id,)
         )
         row = cursor.fetchone()
+        if not row:
+            # Debug log
+            count = conn.execute('SELECT COUNT(*) FROM events').fetchone()[0]
+            print(f"DATABASE DEBUG: Event {event_id} not found. Total records: {count}")
         return dict(row) if row else None
 
 

@@ -29,7 +29,7 @@ events_db.init_db()
 # Keep track of database sync status
 _db_pulled = False
 
-def maybe_sync_db(direction='pull'):
+def maybe_sync_db(direction='pull', force=False):
     """Helper to sync database with Google Drive if authenticated."""
     # Only perform sync on production (Render)
     if not os.environ.get('RENDER'):
@@ -42,8 +42,8 @@ def maybe_sync_db(direction='pull'):
         
     global _db_pulled
     if direction == 'pull':
-        if not _db_pulled:
-            print("DEBUG: Pulling DB from Drive persistence...")
+        if not _db_pulled or force:
+            print(f"DEBUG: Pulling DB from Drive (force={force})...")
             if drive_service.sync_db_from_drive(service, config.DB_PATH):
                 _db_pulled = True
     else:
@@ -484,7 +484,19 @@ def upload_event_photos(event_id):
         # Check if event exists
         event = events_db.get_event(event_id)
         if not event:
-            return jsonify({'error': 'Event not found'}), 404
+            # Fallback: Maybe the DB isn't synced in this worker?
+            print(f"DEBUG: Event {event_id} not found locally. Forcing a Drive pull...")
+            maybe_sync_db('pull', force=True)
+            event = events_db.get_event(event_id)
+            
+        if not event:
+            print(f"DEBUG: Event {event_id} STILL NOT found after force pull. Current database path: {config.DB_PATH}")
+            return jsonify({
+                'error': f'Event #{event_id} not found',
+                'details': 'The event might have been deleted or the database sync failed. Visit /admin and log in again.'
+            }), 404
+        
+        print(f"DEBUG: Found event: {event['name']}")
 
         if 'photos' not in request.files:
             return jsonify({'error': 'No photos provided'}), 400
