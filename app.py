@@ -23,6 +23,9 @@ app.config.from_object(config)
 # Enable CORS
 CORS(app)
 
+# Initialize database
+events_db.init_db()
+
 def get_base_url():
     """Helper to get the base URL for the application."""
     # Priority 1: Environment variable (useful for production)
@@ -542,9 +545,6 @@ def internal_error(error):
 
 
 if __name__ == '__main__':
-    # Initialize database
-    events_db.init_db()
-    
     # Check if credentials file exists
     if not os.path.exists(config.CREDENTIALS_FILE):
         print("\n" + "="*70)
