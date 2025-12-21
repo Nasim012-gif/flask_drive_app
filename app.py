@@ -16,6 +16,7 @@ import drive_service
 import events_db
 import qr_generator
 import face_service
+import api_keys
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -27,6 +28,9 @@ CORS(app)
 
 # Initialize database
 events_db.init_db()
+
+# Initialize API key manager for camera uploads
+api_key_manager = api_keys.APIKeyManager(data_dir=config.DATA_DIR)
 
 # Keep track of database sync status
 _db_pulled = False
@@ -657,6 +661,122 @@ def upload_event_photos_zip(event_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'ZIP processing failed: {str(e)}'}), 500
+
+
+@app.route('/api/camera/upload', methods=['POST'])
+def camera_upload():
+    """Direct upload from camera WiFi. Requires API key authentication."""
+    try:
+        # Check for API key in header or query param
+        api_key = request.headers.get('X-API-Key') or request.args.get('api_key')
+        
+        if not api_key:
+            return jsonify({
+                'error': 'Missing API key',
+                'message': 'Include X-API-Key header or api_key query parameter'
+            }), 401
+        
+        # Validate API key
+        key_data = api_key_manager.validate_key(api_key)
+        if not key_data:
+            return jsonify({'error': 'Invalid or inactive API key'}), 403
+        
+        # Get event ID from key data or request
+        event_id = key_data.get('event_id') or request.form.get('event_id')
+        
+        if not event_id:
+            return jsonify({'error': 'No event_id specified'}), 400
+        
+        event_id = int(event_id)
+        
+        print(f"DEBUG: Camera upload from {key_data['photographer_name']} to event {event_id}")
+        
+        # Check if event exists
+        event = events_db.get_event(event_id)
+        if not event:
+            return jsonify({'error': f'Event {event_id} not found'}), 404
+        
+        # Get uploaded file
+        if 'photo' not in request.files and 'file' not in request.files:
+            return jsonify({'error': 'No photo file in request'}), 400
+        
+        photo = request.files.get('photo') or request.files.get('file')
+        
+        if not photo or photo.filename == '':
+            return jsonify({'error': 'Empty filename'}), 400
+        
+        # Save photo
+        filename = secure_filename(photo.filename)
+        event_dir = os.path.join(PHOTOS_DIR, str(event_id))
+        
+        if not os.path.exists(event_dir):
+            os.makedirs(event_dir)
+        
+        # Handle duplicate filenames
+        file_path = os.path.join(event_dir, filename)
+        counter = 1
+        while os.path.exists(file_path):
+            name, ext = os.path.splitext(filename)
+            filename = f"{name}_{counter}{ext}"
+            file_path = os.path.join(event_dir, filename)
+            counter += 1
+        
+        # Save file
+        photo.save(file_path)
+        print(f"DEBUG: Saved camera photo {filename}")
+        
+        # Backup to Google Drive
+        service = drive_service.get_drive_service()
+        drive_id = None
+        if service:
+            drive_id = drive_service.sync_photo_to_drive(service, file_path, event_id)
+        
+        # Add to database
+        events_db.add_event_photo(event_id, filename, file_path, drive_id)
+        
+        # Sync database
+        maybe_sync_db('push')
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Photo uploaded successfully',
+            'filename': filename,
+            'event_id': event_id,
+            'photographer': key_data['photographer_name']
+        }), 201
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+
+
+@app.route('/api/camera/key/generate', methods=['POST'])
+def generate_api_key():
+    """Generate a new API key for camera uploads. Admin only."""
+    try:
+        # Simple admin check (you can enhance this)
+        admin_password = request.json.get('admin_password')
+        if admin_password != os.environ.get('ADMIN_PASSWORD', 'getphotos2025'):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        photographer_name = request.json.get('photographer_name', 'Unknown')
+        event_id = request.json.get('event_id')
+        
+        # Generate key
+        api_key = api_key_manager.generate_key(photographer_name, event_id)
+        
+        return jsonify({
+            'status': 'success',
+            'api_key': api_key,
+            'photographer_name': photographer_name,
+            'event_id': event_id,
+            'message': 'Configure this key in your camera WiFi settings'
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 
 
 @app.route('/api/events/<int:event_id>/find_me', methods=['POST'])
