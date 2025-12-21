@@ -118,8 +118,10 @@
                                 <div class="event-actions">
                                     <a href="/api/events/${event.id}/qr" download="event_${event.id}_qr.png" class="btn btn-small">Download QR</a>
                                     <a href="/event/${event.id}" target="_blank" class="btn btn-small btn-secondary">View Event</a>
-                                    <button onclick="document.getElementById('upload_${event.id}').click()" class="btn btn-small btn-secondary">Upload Photos</button>
+                                    <button onclick="document.getElementById('upload_${event.id}').click()" class="btn btn-small btn-secondary">📷 Upload Photos</button>
                                     <input type="file" id="upload_${event.id}" multiple accept="image/*" style="display:none" onchange="uploadPhotos(${event.id}, this)">
+                                    <button onclick="document.getElementById('zip_${event.id}').click()" class="btn btn-small btn-secondary">📦 Upload ZIP</button>
+                                    <input type="file" id="zip_${event.id}" accept=".zip" style="display:none" onchange="uploadZip(${event.id}, this)">
                                     <button onclick="deleteEvent(${event.id})" class="btn btn-small btn-danger">Delete</button>
                                 </div>
                             </div>
@@ -213,6 +215,47 @@
                 }
             } catch (error) {
                 alert('Error uploading photos: ' + error.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                input.value = ''; // clear input
+            }
+        }
+
+        // Upload ZIP file
+        async function uploadZip(eventId, input) {
+            if (!input.files || input.files.length === 0) return;
+
+            const zipFile = input.files[0];
+            const btn = input.previousElementSibling;
+            const originalText = btn.innerText;
+
+            btn.innerText = 'Extracting ZIP...';
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('zipfile', zipFile);
+
+                const response = await fetch(`/api/events/${eventId}/photos/zip`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    let msg = `Success: ${result.message}`;
+                    if (result.cloud_sync_active === false) {
+                        msg += "\n\n⚠️ WARNING: Photos were NOT saved to Google Drive. Please go to /auth and log in again to enable permanent storage.";
+                    }
+                    alert(msg);
+                    loadEvents();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error uploading ZIP: ' + error.message);
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;

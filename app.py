@@ -7,6 +7,8 @@ from flask import Flask, request, jsonify, redirect, session, send_file, render_
 from flask_cors import CORS
 import os
 import tempfile
+import zipfile
+import shutil
 from werkzeug.utils import secure_filename
 
 from config import get_config
@@ -544,6 +546,117 @@ def upload_event_photos(event_id):
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/photos/zip', methods=['POST'])
+def upload_event_photos_zip(event_id):
+    """Admin upload of event photos via ZIP file."""
+    maybe_sync_db('pull')
+    print(f"DEBUG: ZIP upload started for event {event_id}")
+    
+    try:
+        # Check if event exists
+        event = events_db.get_event(event_id)
+        if not event:
+            # Fallback: Maybe the DB isn't synced in this worker?
+            print(f"DEBUG: Event {event_id} not found locally. Forcing a Drive pull...")
+            maybe_sync_db('pull', force=True)
+            event = events_db.get_event(event_id)
+            
+        if not event:
+            return jsonify({
+                'error': f'Event #{event_id} not found',
+                'details': 'The event might have been deleted or the database sync failed.'
+            }), 404
+        
+        if 'zipfile' not in request.files:
+            return jsonify({'error': 'No ZIP file provided'}), 400
+
+        zip_file = request.files['zipfile']
+        
+        if not zip_file.filename.endswith('.zip'):
+            return jsonify({'error': 'File must be a ZIP archive'}), 400
+        
+        print(f"DEBUG: Processing ZIP file: {zip_file.filename}")
+        
+        # Create temp directory for extraction
+        temp_extract_dir = tempfile.mkdtemp()
+        temp_zip_path = os.path.join(temp_extract_dir, 'upload.zip')
+        
+        try:
+            # Save uploaded ZIP
+            zip_file.save(temp_zip_path)
+            
+            # Extract ZIP
+            with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_extract_dir)
+            
+            # Remove the ZIP file itself
+            os.remove(temp_zip_path)
+            
+            # Find all image files
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', 
+                              '.cr2', '.nef', '.arw', '.dng', '.raw', '.orf', '.rw2'}
+            
+            uploaded_count = 0
+            event_dir = os.path.join(PHOTOS_DIR, str(event_id))
+            if not os.path.exists(event_dir):
+                os.makedirs(event_dir)
+            
+            # Get Drive service for backup
+            service = drive_service.get_drive_service()
+            
+            # Walk through extracted files
+            for root, dirs, files in os.walk(temp_extract_dir):
+                for file in files:
+                    file_lower = file.lower()
+                    if any(file_lower.endswith(ext) for ext in image_extensions):
+                        source_path = os.path.join(root, file)
+                        filename = secure_filename(file)
+                        
+                        # Avoid duplicates
+                        dest_path = os.path.join(event_dir, filename)
+                        counter = 1
+                        while os.path.exists(dest_path):
+                            name, ext = os.path.splitext(filename)
+                            filename = f"{name}_{counter}{ext}"
+                            dest_path = os.path.join(event_dir, filename)
+                            counter += 1
+                        
+                        # Copy file to event directory
+                        shutil.copy2(source_path, dest_path)
+                        print(f"DEBUG: Extracted and saved {filename}")
+                        
+                        # Backup to Google Drive
+                        drive_id = None
+                        if service:
+                            drive_id = drive_service.sync_photo_to_drive(service, dest_path, event_id)
+                        
+                        # Add to database
+                        events_db.add_event_photo(event_id, filename, dest_path, drive_id)
+                        uploaded_count += 1
+            
+            print(f"DEBUG: Successfully extracted {uploaded_count} photos from ZIP")
+            
+            # Sync database to Drive
+            maybe_sync_db('push')
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'Extracted and uploaded {uploaded_count} photos from ZIP',
+                'count': uploaded_count,
+                'cloud_sync_active': service is not None
+            })
+            
+        finally:
+            # Clean up temp directory
+            if os.path.exists(temp_extract_dir):
+                shutil.rmtree(temp_extract_dir)
+                
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'ZIP processing failed: {str(e)}'}), 500
 
 
 @app.route('/api/events/<int:event_id>/find_me', methods=['POST'])
