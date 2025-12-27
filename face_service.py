@@ -47,13 +47,14 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
     
     # Clean up any existing DeepFace pickle cache to ensure a fresh scan
     # (Fixes issues on ephemeral storage where indices might be corrupt)
-    try:
-        db_path = os.path.dirname(valid_targets[0])
-        for pkl_file in glob.glob(os.path.join(db_path, "*.pkl")):
-            os.remove(pkl_file)
-            print(f"DEBUG: Removed old face index cache: {pkl_file}")
-    except:
-        pass
+    # OPTIMIZATION: Removed forced deletion to allow caching.
+    # try:
+    #     db_path = os.path.dirname(valid_targets[0])
+    #     for pkl_file in glob.glob(os.path.join(db_path, "*.pkl")):
+    #         os.remove(pkl_file)
+    #         print(f"DEBUG: Removed old face index cache: {pkl_file}")
+    # except:
+    #     pass
 
     try:
         # Use DeepFace.find() which is optimized for 1-to-many search
