@@ -132,3 +132,13 @@ def get_event_photos(event_id):
             (event_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
+
+
+def update_photo_drive_id(local_path, drive_file_id):
+    """Update drive_file_id for a photo."""
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE event_photos SET drive_file_id = ? WHERE local_path = ?',
+            (drive_file_id, local_path)
+        )
+        conn.commit()

@@ -9,6 +9,7 @@ import os
 import tempfile
 import zipfile
 import shutil
+import threading
 from werkzeug.utils import secure_filename
 
 from config import get_config
@@ -663,6 +664,22 @@ def upload_event_photos_zip(event_id):
         return jsonify({'error': f'ZIP processing failed: {str(e)}'}), 500
 
 
+def background_sync_task(file_path, event_id, filename):
+    """Background task to sync photo to Drive."""
+    try:
+        service = drive_service.get_drive_service()
+        if service:
+            drive_id = drive_service.sync_photo_to_drive(service, file_path, event_id)
+            # Update DB with drive_id
+            events_db.update_photo_drive_id(file_path, drive_id)
+            print(f"DEBUG: Background sync complete for {filename}")
+            
+            # Push updated DB to Drive
+            maybe_sync_db('push')
+    except Exception as e:
+        print(f"ERROR: Background sync failed for {filename}: {e}")
+
+
 @app.route('/api/camera/upload', methods=['POST'])
 def camera_upload():
     """Direct upload from camera WiFi. Requires API key authentication."""
@@ -725,21 +742,19 @@ def camera_upload():
         photo.save(file_path)
         print(f"DEBUG: Saved camera photo {filename}")
         
-        # Backup to Google Drive
-        service = drive_service.get_drive_service()
-        drive_id = None
-        if service:
-            drive_id = drive_service.sync_photo_to_drive(service, file_path, event_id)
+        # Add to database immediately (without drive_id for now)
+        events_db.add_event_photo(event_id, filename, file_path, None)
         
-        # Add to database
-        events_db.add_event_photo(event_id, filename, file_path, drive_id)
-        
-        # Sync database
-        maybe_sync_db('push')
+        # Start background sync to Drive
+        thread = threading.Thread(
+            target=background_sync_task,
+            args=(file_path, event_id, filename)
+        )
+        thread.start()
         
         return jsonify({
             'status': 'success',
-            'message': 'Photo uploaded successfully',
+            'message': 'Photo received and processing in background',
             'filename': filename,
             'event_id': event_id,
             'photographer': key_data['photographer_name']
