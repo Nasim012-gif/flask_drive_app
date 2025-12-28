@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GetPhotos - Instant AI Event Photography</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-dark: #4338CA;
+            --secondary: #10B981;
+            --dark: #111827;
+            --light: #F3F4F6;
+            --white: #FFFFFF;
+            --glass: rgba(255, 255, 255, 0.95);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            padding: 6rem 2rem 10rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: -50px;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: var(--light);
+            transform: skewY(-3deg);
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            letter-spacing: -1px;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 3rem;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: var(--white);
+            color: var(--primary);
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Features Section */
+        .features {
+            max-width: 1200px;
+            margin: -5rem auto 5rem;
+            padding: 0 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .feature-card {
+            background: var(--white);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--dark);
+        }
+
+        .feature-card p {
+            color: #6B7280;
+            font-size: 0.95rem;
+        }
+
+        /* Scan Section */
+        .scan-section {
+            text-align: center;
+            padding: 5rem 2rem;
+            background: var(--white);
+        }
+
+        .scan-box {
+            max-width: 600px;
+            margin: 0 auto;
+            border: 2px dashed #E5E7EB;
+            border-radius: 20px;
+            padding: 3rem;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: var(--white);
+            padding: 4rem 2rem;
+            text-align: center;
+            margin-top: auto;
+        }
+
+        .footer-links {
+            margin-top: 2rem;
+        }
+
+        .footer-links a {
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+            margin: 0 1rem;
+            font-size: 0.9rem;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--white);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .features {
+                margin-top: -3rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Hero -->
+    <header class="hero">
+        <h1>GetPhotos</h1>
+        <p>Instant AI-Powered Event Photography. <br> Find your photos in seconds with face recognition.</p>
+        <a href="#how-it-works" class="cta-button">Find My Photos</a>
+    </header>
+
+    <!-- Features -->
+    <section class="features" id="how-it-works">
+        <div class="feature-card">
+            <span class="icon">📸</span>
+            <h3>We Snap</h3>
+            <p>Our professional photographers capture your best moments during the event.</p>
+        </div>
+        <div class="feature-card">
+            <span class="icon">🤖</span>
+            <h3>AI Finds You</h3>
+            <p>Upload a selfie, and our AI scans thousands of photos to find ONLY yours.</p>
+        </div>
+        <div class="feature-card">
+            <span class="icon">⚡</span>
+            <h3>Instant Delivery</h3>
+            <p>Get your photos immediately on your phone. No waiting for days.</p>
+        </div>
+    </section>
+
+    <!-- Call to Action -->
+    <section class="scan-section">
+        <div class="scan-box">
+            <h2>Guest at an Event?</h2>
+            <p style="margin: 1rem 0 2rem; color: #6B7280;">Scan the QR code at the venue or ask your host for the event
+                link.</p>
+            <p style="font-weight: 600; color: var(--primary);">Don't have a link? <br> Look for the "GetPhotos" QR
+                posters!</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <h2 style="margin-bottom: 0.5rem;">GetPhotos</h2>
+        <p style="opacity: 0.6; font-size: 0.9rem;">The Future of Event Photography</p>
+
+        <div class="footer-links">
+            <a href="/admin">Photographer Login</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+        </div>
+
+        <p style="margin-top: 3rem; opacity: 0.4; font-size: 0.8rem;">&copy; 2025 GetPhotos. Built with AI.</p>
+    </footer>
+
+</body>
+
+</html>

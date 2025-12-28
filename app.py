@@ -78,13 +78,9 @@ def get_base_url():
 
 @app.route('/')
 def index():
-    """Health check endpoint."""
+    """Landing page."""
     maybe_sync_db('pull')
-    return jsonify({
-        'status': 'ok',
-        'message': 'Flask Google Drive API is running',
-        'authenticated': drive_service.get_credentials() is not None
-    })
+    return render_template('index.html')
 
 
 @app.route('/auth')
