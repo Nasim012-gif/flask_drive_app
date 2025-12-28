@@ -839,7 +839,12 @@ def find_my_photos(event_id):
                 })
                 
             # Perform face matching
-            matches = face_service.verify_face(selfie_path, target_paths)
+            # Use smart_verify_face to handle group photos with super-resolution
+            # This automatically enhances blurry group photos to find small faces
+            matches = face_service.smart_verify_face(selfie_path, target_paths)
+            
+            # Filter results by photo count limit (optional) or score
+            # DeepFace already handles threshold internally
             
             # Prepare result URLs
             matched_urls = []
