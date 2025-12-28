@@ -10,16 +10,17 @@
         rel="stylesheet">
     <style>
         :root {
-            --bg-gradient-start: #E8F5FE;
-            --bg-gradient-end: #F0E6FF;
-            --primary: #1A73E8;
-            --primary-hover: #1557B0;
-            --card-bg: rgba(255, 255, 255, 0.85);
-            --card-border: rgba(255, 255, 255, 0.3);
-            --text-primary: #1F1F1F;
-            --text-secondary: #5F6368;
-            --shadow: 0 1px 3px rgba(60, 64, 67, 0.15), 0 4px 8px rgba(60, 64, 67, 0.1);
-            --shadow-hover: 0 2px 6px rgba(60, 64, 67, 0.2), 0 8px 16px rgba(60, 64, 67, 0.15);
+            --bg-gradient-start: #0F0F1A;
+            --bg-gradient-end: #1A1A2E;
+            --primary: #8B5CF6;
+            --primary-hover: #7C3AED;
+            --card-bg: rgba(30, 30, 46, 0.9);
+            --card-border: rgba(139, 92, 246, 0.15);
+            --text-primary: #E2E8F0;
+            --text-secondary: #94A3B8;
+            --input-bg: rgba(15, 15, 26, 0.8);
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --shadow-hover: 0 8px 30px rgba(139, 92, 246, 0.2);
         }
 
         * {
@@ -109,11 +110,11 @@
         textarea {
             width: 100%;
             padding: 12px 16px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--card-border);
             border-radius: 12px;
             font-size: 0.95rem;
             font-family: inherit;
-            background: rgba(255, 255, 255, 0.9);
+            background: var(--input-bg);
             transition: all 0.2s;
             color: var(--text-primary);
         }
