@@ -18,6 +18,8 @@ import events_db
 import qr_generator
 import face_service
 import api_keys
+import auth
+import cloudinary_service
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -83,8 +85,54 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/auth')
-def auth():
+# ==================== USER AUTHENTICATION ====================
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """User registration page."""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        name = request.form.get('name', '').strip()
+        
+        user_id, error = auth.register_user(email, password, name)
+        
+        if error:
+            return render_template('register.html', error=error)
+        
+        # Auto-login after registration
+        auth.login_user(email, password)
+        return redirect('/admin')
+    
+    return render_template('register.html')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """User login page."""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip().lower()
+        password = request.form.get('password', '')
+        
+        user, error = auth.login_user(email, password)
+        
+        if error:
+            return render_template('login.html', error=error)
+        
+        return redirect('/admin')
+    
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    """Logout user."""
+    auth.logout_user()
+    return redirect('/')
+
+
+@app.route('/google-auth')
+def google_auth():
     """
     Initiate OAuth 2.0 authorization flow.
     Redirects user to Google's authorization page.
@@ -335,7 +383,23 @@ def search_files():
 def admin_panel():
     """Admin panel for event management."""
     maybe_sync_db('pull')
-    return render_template('admin.html')
+    
+    # Get current user if logged in
+    user = auth.get_current_user()
+    storage = None
+    
+    if user:
+        storage_info = events_db.get_user_storage(user['id'])
+        if storage_info:
+            storage = {
+                'used': storage_info['used'],
+                'limit': storage_info['limit'],
+                'percent_used': storage_info['percent_used'],
+                'used_formatted': auth.format_storage(storage_info['used']),
+                'limit_formatted': auth.format_storage(storage_info['limit'])
+            }
+    
+    return render_template('admin.html', user=user, storage=storage)
 
 
 @app.route('/api/events', methods=['GET'])

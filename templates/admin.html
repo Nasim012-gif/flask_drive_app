@@ -246,8 +246,41 @@
 <body>
     <div class="container">
         <header>
-            <h1>📸 GetPhotos Admin Panel</h1>
-            <p>Professional AI-Powered Event Photo Management</p>
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h1>📸 GetPhotos Admin Panel</h1>
+                    <p>Professional AI-Powered Event Photo Management</p>
+                </div>
+                {% if user %}
+                <div style="text-align: right;">
+                    <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Welcome, <strong
+                            style="color: var(--primary);">{{ user.name }}</strong></p>
+                    <a href="/logout"
+                        style="color: var(--text-secondary); text-decoration: none; font-size: 0.875rem;">Logout →</a>
+                </div>
+                {% else %}
+                <div>
+                    <a href="/login" class="btn btn-secondary" style="margin-right: 0.5rem;">Login</a>
+                    <a href="/register" class="btn btn-primary">Sign Up</a>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if storage %}
+            <div style="margin-top: 1.5rem; background: rgba(139, 92, 246, 0.1); border-radius: 12px; padding: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="color: var(--text-secondary);">Storage Used</span>
+                    <span style="color: var(--primary); font-weight: 500;">{{ storage.used_formatted }} / {{
+                        storage.limit_formatted }}</span>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 8px; height: 8px; overflow: hidden;">
+                    <div
+                        style="background: var(--primary); height: 100%; width: {{ storage.percent_used }}%; transition: width 0.3s;">
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </header>
 
         <!-- Event Creation Form -->

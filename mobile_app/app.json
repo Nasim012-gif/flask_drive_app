@@ -1,0 +1,39 @@
+{
+    "expo": {
+        "name": "GetPhotos",
+        "slug": "getphotos-mobile",
+        "version": "1.0.0",
+        "orientation": "portrait",
+        "icon": "./assets/icon.png",
+        "userInterfaceStyle": "light",
+        "splash": {
+            "image": "./assets/splash.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#ffffff"
+        },
+        "assetBundlePatterns": [
+            "**/*"
+        ],
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "com.getphotos.app",
+            "infoPlist": {
+                "NSCameraUsageDescription": "This app needs access to your camera to scan QR codes and take selfies."
+            }
+        },
+        "android": {
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#ffffff"
+            },
+            "package": "com.getphotos.app",
+            "permissions": [
+                "android.permission.CAMERA",
+                "android.permission.INTERNET"
+            ]
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        }
+    }
+}
