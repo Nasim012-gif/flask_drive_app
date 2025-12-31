@@ -260,3 +260,37 @@ def add_photo_with_cloudinary(event_id, filename, local_path, cloudinary_url, cl
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def update_photo_cloudinary_info(local_path, cloudinary_url, cloudinary_public_id, file_size):
+    """Update Cloudinary info for a photo."""
+    with get_db() as conn:
+        conn.execute(
+            '''UPDATE event_photos 
+               SET cloudinary_url = ?, cloudinary_public_id = ?, file_size = ?
+               WHERE local_path = ?''',
+            (cloudinary_url, cloudinary_public_id, file_size, local_path)
+        )
+        conn.commit()
+
+
+def get_photo(photo_id):
+    """Get photo info including its event ownership."""
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            '''SELECT p.*, e.user_id 
+               FROM event_photos p 
+               JOIN events e ON p.event_id = e.id 
+               WHERE p.id = ?''',
+            (photo_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def delete_photo(photo_id):
+    """Delete a photo record from database."""
+    with get_db() as conn:
+        conn.execute('DELETE FROM event_photos WHERE id = ?', (photo_id,))
+        conn.commit()

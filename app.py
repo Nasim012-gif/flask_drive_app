@@ -506,34 +506,36 @@ def search_files():
 # ============================================================================
 
 @app.route('/admin')
+@auth.login_required
 def admin_panel():
     """Admin panel for event management."""
     maybe_sync_db('pull')
     
-    # Get current user if logged in
+    # Get current user (already verified by login_required)
     user = auth.get_current_user()
     storage = None
     
-    if user:
-        storage_info = events_db.get_user_storage(user['id'])
-        if storage_info:
-            storage = {
-                'used': storage_info['used'],
-                'limit': storage_info['limit'],
-                'percent_used': storage_info['percent_used'],
-                'used_formatted': auth.format_storage(storage_info['used']),
-                'limit_formatted': auth.format_storage(storage_info['limit'])
-            }
+    storage_info = events_db.get_user_storage(user['id'])
+    if storage_info:
+        storage = {
+            'used': storage_info['used'],
+            'limit': storage_info['limit'],
+            'percent_used': storage_info['percent_used'],
+            'used_formatted': auth.format_storage(storage_info['used']),
+            'limit_formatted': auth.format_storage(storage_info['limit'])
+        }
     
     return render_template('admin.html', user=user, storage=storage)
 
 
 @app.route('/api/events', methods=['GET'])
+@auth.login_required
 def list_events():
-    """List all events."""
+    """List all events for the current user."""
     maybe_sync_db('pull')
     try:
-        events = events_db.get_all_events()
+        user = auth.get_current_user()
+        events = events_db.get_events_by_user(user['id'])
         return jsonify({
             'status': 'success',
             'count': len(events),
@@ -544,10 +546,12 @@ def list_events():
 
 
 @app.route('/api/events', methods=['POST'])
+@auth.login_required
 def create_event():
-    """Create a new event."""
+    """Create a new event for the current user."""
     try:
         data = request.get_json()
+        user = auth.get_current_user()
         
         # Validate required fields
         required_fields = ['name', 'date', 'location']
@@ -555,8 +559,9 @@ def create_event():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        # Create event
-        event_id = events_db.create_event(
+        # Create event for specific user
+        event_id = events_db.create_event_for_user(
+            user_id=user['id'],
             name=data['name'],
             date=data['date'],
             location=data['location'],
@@ -591,6 +596,10 @@ def get_event(event_id):
         if not event:
             return jsonify({'error': 'Event not found'}), 404
         
+        # Include photos in event details
+        photos = events_db.get_event_photos(event_id)
+        event['photos'] = photos
+        
         return jsonify({
             'status': 'success',
             'event': event
@@ -622,13 +631,18 @@ def get_event_qr(event_id):
 
 
 @app.route('/api/events/<int:event_id>', methods=['DELETE'])
+@auth.login_required
 def delete_event_route(event_id):
-    """Delete an event."""
+    """Delete an event (ownership check)."""
     try:
+        user = auth.get_current_user()
         event = events_db.get_event(event_id)
         
         if not event:
             return jsonify({'error': 'Event not found'}), 404
+            
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to delete this event'}), 403
         
         # Delete QR code file
         if event['qr_code_path']:
@@ -670,10 +684,13 @@ if not os.path.exists(PHOTOS_DIR):
     os.makedirs(PHOTOS_DIR)
 
 @app.route('/api/events/<int:event_id>/photos', methods=['POST'])
+@app.route('/api/events/<int:event_id>/photos', methods=['POST'])
+@auth.login_required
 def upload_event_photos(event_id):
-    """Admin upload of event photos."""
+    """Admin upload of individual event photos."""
     maybe_sync_db('pull')
-    print(f"DEBUG: Photo upload started for event {event_id}")
+    user = auth.get_current_user()
+    print(f"DEBUG: Photo upload started by {user['name']} for event {event_id}")
     try:
         # Check if event exists
         event = events_db.get_event(event_id)
@@ -684,11 +701,21 @@ def upload_event_photos(event_id):
             event = events_db.get_event(event_id)
             
         if not event:
-            print(f"DEBUG: Event {event_id} STILL NOT found after force pull. Current database path: {config.DB_PATH}")
             return jsonify({
-                'error': f'Event #{event_id} not found',
-                'details': 'The event might have been deleted or the database sync failed. Visit /admin and log in again.'
+                'error': f'Event #{event_id} not found'
             }), 404
+            
+        # Ownership Check
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to upload to this event'}), 403
+            
+        # Storage Limit Check
+        storage_info = events_db.get_user_storage(user['id'])
+        if storage_info and storage_info['used'] >= storage_info['limit']:
+            return jsonify({
+                'error': 'Storage limit reached',
+                'message': f"Available: 0 B. Limit: {auth.format_storage(storage_info['limit'])}"
+            }), 403
         
         print(f"DEBUG: Found event: {event['name']}")
 
@@ -741,10 +768,12 @@ def upload_event_photos(event_id):
 
 
 @app.route('/api/events/<int:event_id>/photos/zip', methods=['POST'])
+@auth.login_required
 def upload_event_photos_zip(event_id):
     """Admin upload of event photos via ZIP file."""
     maybe_sync_db('pull')
-    print(f"DEBUG: ZIP upload started for event {event_id}")
+    user = auth.get_current_user()
+    print(f"DEBUG: ZIP upload started by {user['name']} for event {event_id}")
     
     try:
         # Check if event exists
@@ -757,9 +786,20 @@ def upload_event_photos_zip(event_id):
             
         if not event:
             return jsonify({
-                'error': f'Event #{event_id} not found',
-                'details': 'The event might have been deleted or the database sync failed.'
+                'error': f'Event #{event_id} not found'
             }), 404
+            
+        # Ownership Check
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to upload to this event'}), 403
+            
+        # Storage Limit Check
+        storage_info = events_db.get_user_storage(user['id'])
+        if storage_info and storage_info['used'] >= storage_info['limit']:
+            return jsonify({
+                'error': 'Storage limit reached',
+                'message': f"Available: 0 B. Limit: {auth.format_storage(storage_info['limit'])}"
+            }), 403
         
         if 'zipfile' not in request.files:
             return jsonify({'error': 'No ZIP file provided'}), 400
@@ -817,15 +857,34 @@ def upload_event_photos_zip(event_id):
                         
                         # Copy file to event directory
                         shutil.copy2(source_path, dest_path)
-                        print(f"DEBUG: Extracted and saved {filename}")
+                        file_size = os.path.getsize(dest_path)
                         
-                        # Backup to Google Drive
+                        # Cloudinary Upload (Sync for immediate feedback in ZIP)
+                        cloudinary_info = None
+                        try:
+                            cloudinary_info = cloudinary_service.upload_photo(dest_path, user['id'], event_id)
+                        except Exception as ce:
+                            print(f"WARNING: Cloudinary upload failed for {filename}: {ce}")
+
+                        # Backup to Google Drive (Legacy)
                         drive_id = None
                         if service:
                             drive_id = drive_service.sync_photo_to_drive(service, dest_path, event_id)
                         
-                        # Add to database
-                        events_db.add_event_photo(event_id, filename, dest_path, drive_id)
+                        # Add to database with Cloudinary & Drive IDs
+                        if cloudinary_info:
+                            events_db.add_photo_with_cloudinary(
+                                event_id, filename, dest_path, 
+                                cloudinary_info['secure_url'], 
+                                cloudinary_info['public_id'], 
+                                file_size
+                            )
+                            # Update storage
+                            events_db.update_user_storage(user['id'], file_size)
+                        else:
+                            # Fallback if Cloudinary fails
+                            events_db.add_event_photo(event_id, filename, dest_path, drive_id)
+                        
                         uploaded_count += 1
             
             print(f"DEBUG: Successfully extracted {uploaded_count} photos from ZIP")
@@ -851,18 +910,92 @@ def upload_event_photos_zip(event_id):
         return jsonify({'error': f'ZIP processing failed: {str(e)}'}), 500
 
 
-def background_sync_task(file_path, event_id, filename):
-    """Background task to sync photo to Drive."""
+@app.route('/api/photos/<int:photo_id>', methods=['DELETE'])
+@auth.login_required
+def delete_photo_route(photo_id):
+    """Delete a single photo (ownership check + storage cleanup)."""
     try:
+        user = auth.get_current_user()
+        photo = events_db.get_photo(photo_id)
+        
+        if not photo:
+            return jsonify({'error': 'Photo not found'}), 404
+            
+        # Ownership Check
+        if photo.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to delete this photo'}), 403
+            
+        # 1. Delete from Cloudinary
+        if photo.get('cloudinary_public_id'):
+            try:
+                cloudinary_service.delete_photo(photo['cloudinary_public_id'])
+            except Exception as ce:
+                print(f"WARNING: Could not delete from Cloudinary: {ce}")
+                
+        # 2. Delete from Local Storage
+        if os.path.exists(photo['local_path']):
+            try:
+                os.remove(photo['local_path'])
+            except Exception as oe:
+                print(f"WARNING: Could not delete local file: {oe}")
+                
+        # 3. Update User Storage Used
+        file_size = photo.get('file_size', 0)
+        if file_size > 0:
+            events_db.update_user_storage(user['id'], -file_size)
+            
+        # 4. Delete from Database
+        events_db.delete_photo(photo_id)
+        
+        return jsonify({
+            'status': 'success', 
+            'message': 'Photo deleted and storage updated',
+            'freed_space': auth.format_storage(file_size)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def background_sync_task(file_path, event_id, filename):
+    """Background task to sync photo to Drive and Cloudinary."""
+    try:
+        # Get event to find user_id
+        event = events_db.get_event(event_id)
+        if not event:
+            print(f"ERROR: Event {event_id} not found for background sync.")
+            return
+            
+        user_id = event.get('user_id')
+        file_size = os.path.getsize(file_path)
+        
+        # 1. Sync to Google Drive (Legacy/Backup)
         service = drive_service.get_drive_service()
         if service:
             drive_id = drive_service.sync_photo_to_drive(service, file_path, event_id)
-            # Update DB with drive_id
             events_db.update_photo_drive_id(file_path, drive_id)
-            print(f"DEBUG: Background sync complete for {filename}")
-            
-            # Push updated DB to Drive
-            maybe_sync_db('push')
+            print(f"DEBUG: Drive sync complete for {filename}")
+
+        # 2. Upload to Cloudinary (Primary Storage & Delivery)
+        if user_id:
+            try:
+                result = cloudinary_service.upload_photo(file_path, user_id, event_id)
+                if result:
+                    events_db.update_photo_cloudinary_info(
+                        local_path=file_path,
+                        cloudinary_url=result['secure_url'],
+                        cloudinary_public_id=result['public_id'],
+                        file_size=file_size
+                    )
+                    # Update User Storage Used
+                    events_db.update_user_storage(user_id, file_size)
+                    print(f"DEBUG: Cloudinary sync complete for {filename} (+{file_size} bytes)")
+            except Exception as ce:
+                print(f"ERROR: Cloudinary upload failed for {filename}: {ce}")
+        
+        # 3. Final DB Sync to Drive
+        maybe_sync_db('push')
+        
     except Exception as e:
         print(f"ERROR: Background sync failed for {filename}: {e}")
 
@@ -899,6 +1032,16 @@ def camera_upload():
         event = events_db.get_event(event_id)
         if not event:
             return jsonify({'error': f'Event {event_id} not found'}), 404
+            
+        # Check User Storage Limit
+        user_id = event.get('user_id')
+        if user_id:
+            storage_info = events_db.get_user_storage(user_id)
+            if storage_info and storage_info['used'] >= storage_info['limit']:
+                return jsonify({
+                    'error': 'Storage limit reached',
+                    'message': f"You have used {auth.format_storage(storage_info['used'])} of your {auth.format_storage(storage_info['limit'])} limit. Please delete some photos or upgrade."
+                }), 403
         
         # Get uploaded file
         if 'photo' not in request.files and 'file' not in request.files:
