@@ -67,6 +67,17 @@
             background-clip: text;
             position: relative;
             z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .logo-img {
+            height: 80px;
+            width: auto;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
 
         .hero p {
@@ -211,7 +222,10 @@
 
     <!-- Hero -->
     <header class="hero">
-        <h1>GetPhotos</h1>
+        <h1>
+            <img src="/static/images/logo.jpg" alt="GetPhotos Logo" class="logo-img">
+            GetPhotos
+        </h1>
         <p>Instant AI-Powered Event Photography. <br> Find your photos in seconds with face recognition.</p>
         <a href="#how-it-works" class="cta-button">Find My Photos</a>
     </header>
