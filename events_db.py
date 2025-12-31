@@ -69,6 +69,17 @@ def init_db():
                 FOREIGN KEY (event_id) REFERENCES events (id)
             )
         ''')
+        
+        # Password resets table
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS password_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token TEXT UNIQUE NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
         conn.commit()
     print("Database initialized successfully")
 
@@ -260,6 +271,53 @@ def add_photo_with_cloudinary(event_id, filename, local_path, cloudinary_url, cl
         )
         conn.commit()
         return cursor.lastrowid
+
+
+# ==================== PASSWORD RESET ====================
+
+def create_reset_token(user_id, token, expires_at):
+    """Create a password reset token for a user."""
+    with get_db() as conn:
+        # Delete any existing tokens for this user
+        conn.execute('DELETE FROM password_resets WHERE user_id = ?', (user_id,))
+        
+        conn.execute(
+            'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)',
+            (user_id, token, expires_at)
+        )
+        conn.commit()
+
+
+def get_user_by_reset_token(token):
+    """Get user information by reset token if not expired."""
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            '''SELECT u.* 
+               FROM users u
+               JOIN password_resets pr ON u.id = pr.user_id
+               WHERE pr.token = ? AND pr.expires_at > ?''',
+            (token, datetime.now())
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def delete_reset_token(token):
+    """Delete a reset token after use."""
+    with get_db() as conn:
+        conn.execute('DELETE FROM password_resets WHERE token = ?', (token,))
+        conn.commit()
+
+
+def update_user_password(user_id, password_hash):
+    """Update user's password hash."""
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE users SET password_hash = ? WHERE id = ?',
+            (password_hash, user_id)
+        )
+        conn.commit()
 
 
 def update_photo_cloudinary_info(local_path, cloudinary_url, cloudinary_public_id, file_size):

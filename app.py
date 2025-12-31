@@ -10,6 +10,9 @@ import tempfile
 import zipfile
 import shutil
 import threading
+import uuid
+import secrets
+from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 
 from config import get_config
@@ -255,6 +258,68 @@ def logout():
     """Logout user."""
     auth.logout_user()
     return redirect('/')
+
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    """Request a password reset."""
+    error = None
+    success = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = events_db.get_user_by_email(email)
+        
+        if user:
+            # Generate token and expiration (1 hour)
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.now() + timedelta(hours=1)
+            
+            # Save to DB
+            events_db.create_reset_token(user['id'], token, expires_at)
+            
+            # Simulate sending email
+            reset_url = url_for('reset_password', token=token, _external=True)
+            print("="*50)
+            print(f"PASSWORD RESET REQUEST FOR: {email}")
+            print(f"RESET LINK: {reset_url}")
+            print("="*50)
+            
+            success = "If an account exists with that email, a reset link has been sent to your server logs."
+        else:
+            # For security, show the same success message
+            success = "If an account exists with that email, a reset link has been sent."
+            
+    return render_template('forgot_password.html', error=error, success=success)
+
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Reset password using token."""
+    user = events_db.get_user_by_reset_token(token)
+    
+    if not user:
+        return render_template('login.html', error="Invalid or expired reset token.")
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not password or len(password) < 6:
+            return render_template('reset_password.html', token=token, error="Password must be at least 6 characters.")
+        
+        if password != confirm_password:
+            return render_template('reset_password.html', token=token, error="Passwords do not match.")
+        
+        # Update password
+        password_hash = auth.hash_password(password)
+        events_db.update_user_password(user['id'], password_hash)
+        
+        # Delete token
+        events_db.delete_reset_token(token)
+        
+        return render_template('login.html', success="Password reset successfully. Please sign in.")
+        
+    return render_template('reset_password.html', token=token)
 
 
 @app.route('/google-auth')
