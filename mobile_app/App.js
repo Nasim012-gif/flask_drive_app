@@ -8,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 export default function App() {
     const [hasPermission, setHasPermission] = useState(null);
     const [scanned, setScanned] = useState(false);
-    const [currentUrl, setCurrentUrl] = useState('https://getphotos.onrender.com'); // Default to home
+    const [currentUrl, setCurrentUrl] = useState('https://nasim-event-app-2025.onrender.com'); // Default to home
     const [showScanner, setShowScanner] = useState(false);
 
     useEffect(() => {
@@ -25,7 +25,7 @@ export default function App() {
         setShowScanner(false);
 
         // Check if it's a valid GetPhotos URL
-        if (data.includes('getphotos.onrender.com')) {
+        if (data.includes('nasim-event-app-2025.onrender.com')) {
             setCurrentUrl(data);
             Alert.alert('Event Found!', 'Loading your event...');
         } else {
@@ -73,7 +73,7 @@ export default function App() {
 
             {/* Native Navigation Bar */}
             <View style={styles.navBar}>
-                <TouchableOpacity style={styles.navBtn} onPress={() => setCurrentUrl('https://getphotos.onrender.com/admin')}>
+                <TouchableOpacity style={styles.navBtn} onPress={() => setCurrentUrl('https://nasim-event-app-2025.onrender.com/admin')}>
                     <Text style={styles.navText}>Admin Login</Text>
                 </TouchableOpacity>
 
@@ -84,7 +84,7 @@ export default function App() {
                     <Text style={styles.scanBtnText}>📸 Scan QR</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.navBtn} onPress={() => setCurrentUrl('https://getphotos.onrender.com')}>
+                <TouchableOpacity style={styles.navBtn} onPress={() => setCurrentUrl('https://nasim-event-app-2025.onrender.com')}>
                     <Text style={styles.navText}>Home</Text>
                 </TouchableOpacity>
             </View>

@@ -57,7 +57,7 @@ Your API key is generated the first time you run the app. **Save it!**
 
 You can also pre-generate one:
 ```bash
-curl -X POST https://getphotos.onrender.com/api/camera/key/generate \
+curl -X POST https://nasim-event-app-2025.onrender.com/api/camera/key/generate \
   -H "Content-Type: application/json" \
   -d '{"admin_password":"getphotos2025","photographer_name":"YourName","event_id":1}'
 ```

@@ -13,7 +13,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Configuration
-SERVER_URL = "https://getphotos.onrender.com"
+SERVER_URL = "https://nasim-event-app-2025.onrender.com"
 SUPPORTED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.cr2', '.nef', '.arw', '.dng', '.raw'}
 
 class PhotoUploader(FileSystemEventHandler):
