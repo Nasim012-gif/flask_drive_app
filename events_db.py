@@ -49,6 +49,7 @@ def init_db():
                 description TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 qr_code_path TEXT,
+                local_gallery_path TEXT,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
@@ -72,13 +73,13 @@ def init_db():
     print("Database initialized successfully")
 
 
-def create_event(name, date, location, description=""):
+def create_event(name, date, location, description="", local_gallery_path=None):
     """Create a new event."""
     with get_db() as conn:
         cursor = conn.execute(
-            '''INSERT INTO events (name, date, location, description)
-               VALUES (?, ?, ?, ?)''',
-            (name, date, location, description)
+            '''INSERT INTO events (name, date, location, description, local_gallery_path)
+               VALUES (?, ?, ?, ?, ?)''',
+            (name, date, location, description, local_gallery_path)
         )
         conn.commit()
         return cursor.lastrowid
@@ -237,13 +238,13 @@ def get_events_by_user(user_id):
         return [dict(row) for row in cursor.fetchall()]
 
 
-def create_event_for_user(user_id, name, date, location, description=""):
+def create_event_for_user(user_id, name, date, location, description="", local_gallery_path=None):
     """Create a new event for a specific user."""
     with get_db() as conn:
         cursor = conn.execute(
-            '''INSERT INTO events (user_id, name, date, location, description)
-               VALUES (?, ?, ?, ?, ?)''',
-            (user_id, name, date, location, description)
+            '''INSERT INTO events (user_id, name, date, location, description, local_gallery_path)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            (user_id, name, date, location, description, local_gallery_path)
         )
         conn.commit()
         return cursor.lastrowid

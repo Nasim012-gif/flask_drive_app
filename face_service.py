@@ -67,7 +67,7 @@ def enhance_photo(img_path):
         print(f"DEBUG: Enhancement failed: {e}")
         return None
 
-def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distance_metric="cosine"):
+def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distance_metric="cosine", db_path=None):
     """
     Compare a source face (selfie) against a list of target images.
     
@@ -76,6 +76,7 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
         target_img_paths (list): List of paths to event photos.
         model_name (str): DeepFace model to use (VGG-Face, Facenet, etc.)
         distance_metric (str): Metric for comparison (cosine, euclidean)
+        db_path (str): Optional. Explicit path to the photo database folder.
         
     Returns:
         list: List of matching image paths.
@@ -86,12 +87,17 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
     # Pre-filter: only check files that exist
     valid_targets = [p for p in target_img_paths if os.path.exists(p)]
     
-    if not valid_targets:
+    if not valid_targets and not db_path:
         return []
 
     print(f"DEBUG: Starting face matching for {len(valid_targets)} photos...")
     
-    # Clean up any existing DeepFace pickle cache to ensure a fresh scan
+    search_path = db_path
+    if not search_path and valid_targets:
+        search_path = os.path.dirname(valid_targets[0])
+        
+    if not search_path:
+        return []
     # (Fixes issues on ephemeral storage where indices might be corrupt)
     # OPTIMIZATION: Removed forced deletion to allow caching.
     # try:
@@ -103,10 +109,9 @@ def verify_face(source_img_path, target_img_paths, model_name="VGG-Face", distan
     #     pass
 
     try:
-        # Use DeepFace.find() which is optimized for 1-to-many search
         result = df.find(
             img_path=source_img_path,
-            db_path=os.path.dirname(valid_targets[0]), # Folder containing images
+            db_path=search_path, # Folder containing images
             model_name=model_name,
             distance_metric=distance_metric,
             enforce_detection=False, # Don't crash if no face found in some background photos
@@ -156,7 +161,7 @@ def count_faces(img_path):
     except:
         return 0
 
-def smart_verify_face(source_img_path, target_img_paths):
+def smart_verify_face(source_img_path, target_img_paths, db_path=None):
     """
     Enhanced verification with super-resolution for group photos.
     1. Run standard matching first (fast).
@@ -165,7 +170,7 @@ def smart_verify_face(source_img_path, target_img_paths):
     4. Run matching again on enhanced versions.
     """
     # 1. Standard fast scan
-    matches = verify_face(source_img_path, target_img_paths)
+    matches = verify_face(source_img_path, target_img_paths, db_path=db_path)
     
     # 2. Find potental group photos that were missed
     # (Photos that are NOT in matches, but might contain our person if enhanced)
@@ -193,7 +198,7 @@ def smart_verify_face(source_img_path, target_img_paths):
         print(f"DEBUG: Re-scanning {len(enhanced_targets)} enhanced group photos...")
         
         # DeepFace returns the paths of matched images from the target list
-        enhanced_matches = verify_face(source_img_path, enhanced_targets)
+        enhanced_matches = verify_face(source_img_path, enhanced_targets) # No db_path for temp files
         
         for em in enhanced_matches:
             if em in enhanced_map:

@@ -3,4 +3,4 @@
 
 cd "$(dirname "$0")"
 source venv/bin/activate
-python app.py
+python run_with_ngrok.py

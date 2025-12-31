@@ -4,313 +4,401 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ event.name }} - GetPhotos</title>
+    <title>AirDrop Transfer - {{ event.name }}</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #000;
+            color: white;
             min-height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             padding: 20px;
+            overflow: hidden;
         }
 
-        .event-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            max-width: 600px;
+        /* Glassmorphism Header */
+        .header {
             width: 100%;
-            padding: 40px;
-            animation: fadeIn 0.5s ease-in;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .event-icon {
-            font-size: 64px;
+            max-width: 400px;
+            padding: 20px;
+            background: rgba(28, 28, 30, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 40px;
+            margin-top: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         h1 {
-            color: #2d3748;
-            font-size: 32px;
-            margin-bottom: 20px;
-            text-align: center;
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0 0 5px 0;
         }
 
-        .detail {
+        p.subtitle {
+            font-size: 14px;
+            color: #8E8E93;
+            margin: 0;
+        }
+
+        /* Main Interaction Area */
+        .beam-zone {
+            position: relative;
+            width: 300px;
+            height: 300px;
             display: flex;
-            align-items: flex-start;
-            margin: 20px 0;
-            padding: 15px;
-            background: #f7fafc;
-            border-radius: 10px;
-            border-left: 4px solid #667eea;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 40px;
         }
 
-        .detail-icon {
-            font-size: 24px;
-            margin-right: 15px;
-            flex-shrink: 0;
+        /* Radar Animation */
+        .radar-circle {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 122, 255, 0.5);
+            opacity: 0;
+            transform: scale(0.5);
         }
 
-        .detail-content h3 {
-            color: #4a5568;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 5px;
+        .animating .radar-circle {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
         }
 
-        .detail-content p {
-            color: #2d3748;
-            font-size: 18px;
-            line-height: 1.6;
+        .animating .radar-circle:nth-child(2) {
+            animation-delay: 0.5s;
         }
 
-        .description {
-            margin-top: 30px;
-            padding: 20px;
-            background: #edf2f7;
-            border-radius: 10px;
+        .animating .radar-circle:nth-child(3) {
+            animation-delay: 1s;
         }
 
-        .description h3 {
-            color: #4a5568;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 10px;
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2.5);
+                opacity: 0;
+            }
         }
 
-        .description p {
-            color: #2d3748;
-            font-size: 16px;
-            line-height: 1.8;
+        /* Camera/Profile Avatar */
+        .avatar-container {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #1C1C1E;
+            overflow: hidden;
+            position: relative;
+            z-index: 2;
+            border: 4px solid #000;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
         }
 
-        .footer {
-            margin-top: 30px;
-            text-align: center;
-            color: #718096;
-            font-size: 14px;
-        }
-
-        .action-btn {
-            display: block;
+        #video,
+        #capturedImage {
             width: 100%;
-            padding: 15px;
-            background: #667eea;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Status Text */
+        #statusText {
+            font-size: 17px;
+            color: #8E8E93;
+            text-align: center;
+            height: 30px;
+            margin-bottom: 20px;
+        }
+
+        /* Action Buttons */
+        .action-button {
+            background: #007AFF;
             color: white;
-            text-align: center;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: bold;
-            margin-top: 20px;
-            font-size: 18px;
             border: none;
+            padding: 16px 32px;
+            font-size: 17px;
+            font-weight: 600;
+            border-radius: 28px;
             cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .action-btn:hover {
-            background: #5a67d8;
-        }
-
-        .camera-container {
-            display: none;
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        video,
-        canvas {
             width: 100%;
-            border-radius: 10px;
-            margin-bottom: 10px;
+            max-width: 300px;
+            transition: transform 0.1s, background 0.2s;
+            margin-bottom: 12px;
         }
 
-        .photos-grid {
+        .action-button:active {
+            transform: scale(0.98);
+            background: #0056b3;
+        }
+
+        .secondary-button {
+            background: rgba(255, 255, 255, 0.1);
+            color: #007AFF;
+        }
+
+        /* Incoming Transfer Card */
+        .transfer-card {
+            background: rgba(28, 28, 30, 0.9);
+            border-radius: 20px;
+            padding: 24px;
+            width: 300px;
+            text-align: center;
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .transfer-card.visible {
+            display: block;
+            animation: popIn 0.3s ease forwards;
+        }
+
+        @keyframes popIn {
+            to {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .transfer-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .transfer-title {
+            font-size: 17px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .transfer-subtitle {
+            font-size: 13px;
+            color: #8E8E93;
+            margin-bottom: 24px;
+        }
+
+        .preview-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
+            gap: 8px;
             margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
         }
 
-        .photos-grid img {
+        .preview-img {
             width: 100%;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-
-        @media (max-width: 600px) {
-            .event-container {
-                padding: 30px 20px;
-            }
-
-            h1 {
-                font-size: 24px;
-            }
-
-            .detail-content p {
-                font-size: 16px;
-            }
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 12px;
+            background: #333;
         }
     </style>
 </head>
 
 <body>
-    <div class="event-container">
-        <div class="event-icon">🎉</div>
-        <h1>{{ event.name }}</h1>
+    <div class="header" id="header">
+        <h1>AirDrop Station</h1>
+        <p class="subtitle">Connected to {{ event.name }}</p>
+    </div>
 
-        <div class="detail">
-            <div class="detail-icon">📅</div>
-            <div class="detail-content">
-                <h3>Date & Time</h3>
-                <p id="eventDate">{{ event.date }}</p>
+    <!-- Scanning Visual -->
+    <div class="beam-zone" id="beamZone">
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+        <div class="radar-circle"></div>
+
+        <div class="avatar-container" onclick="openCamera()">
+            <!-- Default Placeholder Icon -->
+            <div id="defaultIcon"
+                style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#2C2C2E;">
+                <span style="font-size:40px;">👤</span>
             </div>
-        </div>
-
-        <div class="detail">
-            <div class="detail-icon">📍</div>
-            <div class="detail-content">
-                <h3>Location</h3>
-                <p>{{ event.location }}</p>
-            </div>
-        </div>
-
-        {% if event.description %}
-        <div class="description">
-            <h3>About This Event</h3>
-            <p>{{ event.description }}</p>
-        </div>
-        {% endif %}
-
-        <div class="find-me-section">
-            <button class="action-btn" onclick="openCamera()">📸 Find My Photos</button>
-
-            <div class="camera-container" id="cameraUI">
-                <video id="video" autoplay playsinline></video>
-                <canvas id="canvas" style="display:none"></canvas>
-                <button class="action-btn" onclick="takeSnapshot()">Capture & Search</button>
-                <button class="action-btn" style="background:#e53e3e" onclick="closeCamera()">Cancel</button>
-            </div>
-
-            <div id="loading" style="display:none; text-align:center; margin-top:20px;">
-                <p>🔍 Integrating AI matching...</p>
-                <p>This checks all event photos for your face.</p>
-            </div>
-
-            <div id="results" class="photos-grid"></div>
-        </div>
-
-        <div class="footer">
-            <p><strong>GetPhotos</strong> - AI-Powered Event Photography</p>
-            <p style="font-size: 12px; margin-top: 5px;">Event ID: #{{ event.id }}</p>
+            <!-- Live Camera Feed -->
+            <video id="video" autoplay playsinline style="display:none"></video>
+            <!-- Captured Snapshot -->
+            <canvas id="canvas" style="display:none"></canvas>
+            <img id="capturedImage" style="display:none">
         </div>
     </div>
 
-    <script>
-        // Format the date nicely
-        const dateElement = document.getElementById('eventDate');
-        const dateString = '{{ event.date }}';
-        const date = new Date(dateString);
-        dateElement.textContent = date.toLocaleString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    <div id="statusText">Tap circle to scan face</div>
 
-        // Camera Logic
+    <!-- Initial State Controls -->
+    <div id="controls">
+        <button class="action-button" onclick="openCamera()" id="scanBtn">Scan to Find</button>
+    </div>
+
+    <!-- Capture State Controls -->
+    <div id="captureControls" style="display:none">
+        <button class="action-button" onclick="takeSnapshot()">Start Search</button>
+        <button class="action-button secondary-button" onclick="resetCamera()">Cancel</button>
+    </div>
+
+    <!-- Success Modal: "AirDrop Request" -->
+    <div class="transfer-card" id="transferCard">
+        <div class="transfer-icon">📡</div>
+        <div class="transfer-title">Photos Found</div>
+        <div class="transfer-subtitle">Receiving <span id="photoCount">0</span> photos...</div>
+
+        <button class="action-button" onclick="acceptTransfer()">Accept</button>
+        <button class="action-button secondary-button" onclick="resetApp()">Decline</button>
+    </div>
+
+    <!-- Results Grid (Hidden initially, shown after Accept) -->
+    <div id="galleryView" style="display:none; width:100%; max-width:400px;">
+        <h3 style="margin-left:5px">Saved to Downloads</h3>
+        <div class="preview-grid" id="photosGrid"></div>
+        <button class="action-button secondary-button" style="margin-top:20px" onclick="resetApp()">Done</button>
+    </div>
+
+    <script>
         let stream = null;
+        let isScanning = false;
 
         async function openCamera() {
+            if (stream) return; // Prevent double open
             try {
+                document.getElementById('defaultIcon').style.display = 'none';
+                document.getElementById('video').style.display = 'block';
+                document.getElementById('statusText').innerText = "Position face in circle...";
+
+                document.getElementById('controls').style.display = 'none';
+                document.getElementById('captureControls').style.display = 'block';
+
                 stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                 const video = document.getElementById('video');
                 video.srcObject = stream;
-                document.getElementById('cameraUI').style.display = 'block';
             } catch (err) {
-                alert('Camera access denied or not available');
+                alert('Camera access needed to match your face.');
+                resetCamera();
             }
         }
 
-        function closeCamera() {
+        function resetCamera() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
+                stream = null;
             }
-            document.getElementById('cameraUI').style.display = 'none';
+            document.getElementById('video').style.display = 'none';
+            document.getElementById('defaultIcon').style.display = 'flex';
+            document.getElementById('controls').style.display = 'block';
+            document.getElementById('captureControls').style.display = 'none';
+            document.getElementById('statusText').innerText = "Tap circle to scan face";
+            document.getElementById('beamZone').classList.remove('animating');
+            document.getElementById('capturedImage').style.display = 'none';
         }
 
         async function takeSnapshot() {
+            // UI Transition
+            document.getElementById('beamZone').classList.add('animating');
+            document.getElementById('statusText').innerText = "Searching nearby...";
+            document.getElementById('captureControls').style.display = 'none';
+
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
-            const context = canvas.getContext('2d');
-
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.getContext('2d').drawImage(video, 0, 0);
 
-            // Convert to file
-            canvas.toBlob(async (blob) => {
-                const formData = new FormData();
-                formData.append('selfie', blob, 'selfie.jpg');
+            // Stop video, switch to captured frame for effect
+            const imageUrl = canvas.toDataURL('image/jpeg');
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            document.getElementById('video').style.display = 'none';
+            document.getElementById('capturedImage').src = imageUrl;
+            document.getElementById('capturedImage').style.display = 'block';
 
-                closeCamera();
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('results').innerHTML = '';
+            canvas.toBlob(sendForMatching, 'image/jpeg');
+        }
 
-                try {
-                    const response = await fetch('/api/events/{{ event.id }}/find_me', {
-                        method: 'POST',
-                        body: formData
-                    });
+        async function sendForMatching(blob) {
+            const formData = new FormData();
+            formData.append('selfie', blob, 'selfie.jpg');
 
-                    const result = await response.json();
+            try {
+                const response = await fetch('/api/events/{{ event.id }}/find_me', {
+                    method: 'POST',
+                    body: formData
+                });
 
-                    if (result.matches && result.matches.length > 0) {
-                        const photosHtml = result.matches.map(url => `
-                            <div>
-                                <a href="${url}" download>
-                                    <img src="${url}" alt="Matched Photo">
-                                </a>
-                                <a href="${url}" download class="btn" style="display:block; text-align:center; margin-top:5px; text-decoration:none; color:#667eea; font-weight:bold;">⬇ Download</a>
-                            </div>
-                        `).join('');
-                        document.getElementById('results').innerHTML = photosHtml;
-                        alert(`Found ${result.matches.length} photos of you!`);
-                    } else {
-                        alert('No matching photos found.');
-                    }
-                } catch (error) {
-                    alert('Error matching face: ' + error.message);
-                } finally {
-                    document.getElementById('loading').style.display = 'none';
+                const result = await response.json();
+
+                document.getElementById('beamZone').classList.remove('animating');
+
+                if (result.matches && result.matches.length > 0) {
+                    showTransferRequest(result.matches);
+                } else {
+                    document.getElementById('statusText').innerText = "No one found nearby.";
+                    setTimeout(resetCamera, 2000);
                 }
-            }, 'image/jpeg');
+            } catch (e) {
+                alert('Connection lost. Try again.');
+                resetCamera();
+            }
+        }
+
+        let foundPhotos = [];
+
+        function showTransferRequest(photos) {
+            foundPhotos = photos;
+            document.getElementById('photoCount').innerText = photos.length;
+            document.getElementById('transferCard').classList.add('visible');
+            document.getElementById('statusText').innerText = "Connection established";
+        }
+
+        function acceptTransfer() {
+            document.getElementById('transferCard').classList.remove('visible');
+            document.getElementById('header').style.display = 'none'; // Hide top to focus on content
+            document.getElementById('beamZone').style.display = 'none';
+            document.getElementById('statusText').style.display = 'none';
+            document.getElementById('galleryView').style.display = 'block';
+
+            const grid = document.getElementById('photosGrid');
+            grid.innerHTML = '';
+
+            foundPhotos.forEach(url => {
+                // Create visible image
+                const img = document.createElement('img');
+                img.src = url;
+                img.className = 'preview-img';
+
+                // Wrap in download link
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = ''; // Trigger download
+                link.appendChild(img);
+                grid.appendChild(link);
+
+                // Auto-trigger download (simulating AirDrop)
+                // Note: Browsers may block multiple popups.
+            });
+        }
+
+        function resetApp() {
+            window.location.reload();
         }
     </script>
 </body>

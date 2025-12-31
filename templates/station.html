@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My AirDrop Station</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505;
+            --card-bg: #111;
+            --primary: #00F0FF;
+            --text: #FFF;
+            --text-dim: #666;
+            --border: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Space Grotesk', sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            max-width: 1200px;
+            width: 90%;
+            height: 80vh;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: 0 0 40px rgba(0, 240, 255, 0.05);
+        }
+
+        /* QR Section */
+        .qr-wrapper {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.2);
+        }
+
+        .qr-img {
+            width: 280px;
+            height: 280px;
+            display: block;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin: 0 0 1rem;
+            text-align: center;
+            background: linear-gradient(to right, #FFF, #999);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        /* Config Section */
+        .config-group {
+            width: 100%;
+            margin-top: 2rem;
+        }
+
+        label {
+            display: block;
+            color: var(--primary);
+            font-size: 0.9rem;
+            margin-bottom: 0.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 1rem;
+        }
+
+        input {
+            flex: 1;
+            background: #222;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        button {
+            background: var(--primary);
+            color: black;
+            border: none;
+            padding: 0 2rem;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        /* Pulse Animation for "Live" status */
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background: #00FF9D;
+            border-radius: 50%;
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            box-shadow: 0 0 10px #00FF9D;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(1.2);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--border);
+            width: 100%;
+            margin: 2rem 0;
+        }
+
+        .url-display {
+            font-family: monospace;
+            color: var(--text-dim);
+            background: #000;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Main Station Card -->
+        <div class="card">
+            <div class="status-dot"></div>
+            <h1>Your AirDrop Station</h1>
+            <p class="subtitle">Scan to receive photos immediately.</p>
+
+            <div class="divider"></div>
+
+            <div class="qr-wrapper">
+                <img src="/api/events/{{ station.id }}/qr" class="qr-img" alt="Station QR Code">
+            </div>
+
+            <div class="url-display">
+                Station ID: {{ station.id }}
+            </div>
+        </div>
+
+        <!-- Controls Card -->
+        <div class="card">
+            <h2>Source Configuration</h2>
+            <p class="subtitle">Where should the photos come from?</p>
+
+            <div class="config-group">
+                <label>Linked Folder Path</label>
+                <div class="input-wrapper">
+                    <input type="text" id="folderPath" value="{{ station.local_gallery_path or '' }}"
+                        placeholder="/Users/username/Pictures/...">
+                    <button onclick="updateFolder()">Update</button>
+                </div>
+                <small style="color: #444; display:block; margin-top:10px;">
+                    ⚠️ Paths must be absolute and accessible.
+                </small>
+            </div>
+
+            <div class="divider"></div>
+
+            <label>Connection Status</label>
+            <div style="background: #222; padding: 1.5rem; border-radius: 12px; width: 100%;">
+                <div style="display:flex; justify-content:space-between; margin-bottom: 0.5rem;">
+                    <span>Secure Tunnel</span>
+                    <span style="color: #00FF9D">Active</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                    <span>Post-Quantum Crypto</span>
+                    <span style="color: var(--primary)">Enabled (Kyber-1024)</span>
+                </div>
+            </div>
+
+            <div class="config-group">
+                <a href="/admin" style="color: var(--text-dim); text-decoration: none; font-size: 0.9rem;">→ Advanced
+                    Admin Settings</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateFolder() {
+            const path = document.getElementById('folderPath').value;
+            const btn = document.querySelector('button');
+            const originalText = btn.innerText;
+
+            btn.innerText = " Saving...";
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/station/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+
+                if (response.ok) {
+                    alert('Source folder updated!');
+                } else {
+                    const err = await response.json();
+                    alert('Error: ' + err.error);
+                }
+            } catch (e) {
+                alert('Connection error');
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+
+</html>

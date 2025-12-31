@@ -303,6 +303,14 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="localGalleryPath">Linked Local Gallery Path (Optional)</label>
+                    <input type="text" id="localGalleryPath" placeholder="/Users/username/Pictures/EventAlbum">
+                    <small style="color: var(--text-secondary); display: block; margin-top: 5px;">
+                        ⚠️ Link a local folder on this computer instead of uploading photos.
+                    </small>
+                </div>
+
+                <div class="form-group">
                     <label for="eventDescription">Description</label>
                     <textarea id="eventDescription" rows="4" placeholder="Event details..."></textarea>
                 </div>
@@ -337,8 +345,10 @@
             const eventData = {
                 name: document.getElementById('eventName').value,
                 date: document.getElementById('eventDate').value,
+                date: document.getElementById('eventDate').value,
                 location: document.getElementById('eventLocation').value,
-                description: document.getElementById('eventDescription').value
+                description: document.getElementById('eventDescription').value,
+                local_gallery_path: document.getElementById('localGalleryPath').value
             };
 
             try {

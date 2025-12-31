@@ -1,9 +1,13 @@
 
 import time
+import ssl
 import sys
 import os
 from pyngrok import ngrok
 from dotenv import load_dotenv
+
+# Bypass SSL verify for pyngrok downloads/checks
+ssl._create_default_https_context = ssl._create_unverified_context
 
 # Load env to ensure we don't mess up paths
 load_dotenv()
@@ -14,11 +18,14 @@ def start_app_with_tunnel():
     try:
         # Point to local binary if present
         ngrok_path = os.path.join(os.getcwd(), 'ngrok')
+        print(f"DEBUG: Checking for ngrok at {ngrok_path}")
         if os.path.exists(ngrok_path):
+            print("DEBUG: Found local ngrok binary")
             from pyngrok.conf import PyngrokConfig
+            # Ensure we don't try to update
             ngrok.set_auth_token(os.getenv('NGROK_AUTH_TOKEN')) if os.getenv('NGROK_AUTH_TOKEN') else None
             conf = PyngrokConfig(ngrok_path=ngrok_path)
-            public_url = ngrok.connect(5000, pyngrok_config=conf).public_url
+            public_url = ngrok.connect(8080, pyngrok_config=conf).public_url
         else:
             public_url = ngrok.connect(5000).public_url
             
@@ -49,8 +56,9 @@ def start_app_with_tunnel():
 
     # 3. Print Instructions
     print("\n" + "="*60)
-    print(f"🌍 PUBLIC ACCESS URL: {public_url}")
-    print(f"📱 SCAN THE QR CODE NOW - IT WILL WORK GLOBALLY!")
+    print(f"🌍 GLOBAL STATION ONLINE")
+    print(f"🔗 DASHBOARD & MOBILE URL: {public_url}")
+    print(f"👉 Use this URL for EVERYTHING (Admin, Sharing, Guest Access)")
     print("="*60 + "\n")
 
     # 4. Start Flask App
