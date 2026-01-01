@@ -23,7 +23,7 @@ import face_service
 import api_keys
 import auth
 import cloudinary_service
-import pqc_service
+# import pqc_service  # Temporarily disabled for deployment
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -144,69 +144,70 @@ def update_station_folder():
 
 
 # ==================== POST-QUANTUM CRYPTOGRAPHY ====================
+# Temporarily disabled for deployment - requires kyber-py dependency
 
-@app.route('/api/pqc/public_key', methods=['GET'])
-def get_kyber_public_key():
-    """Return the Server's Kyber Public Key."""
-    pk = pqc_service.pqc_manager.get_public_key()
-    # Return as hex string for easy transport
-    return jsonify({
-        'status': 'success',
-        'public_key': pk.hex()
-    })
+# @app.route('/api/pqc/public_key', methods=['GET'])
+# def get_kyber_public_key():
+#     """Return the Server's Kyber Public Key."""
+#     pk = pqc_service.pqc_manager.get_public_key()
+#     # Return as hex string for easy transport
+#     return jsonify({
+#         'status': 'success',
+#         'public_key': pk.hex()
+#     })
 
-@app.route('/api/pqc/handshake', methods=['POST'])
-def kyber_handshake():
-    """
-    Client sends Kyber Encapsulated Ciphertext.
-    Server recovers shared secret and returns a Session Token.
-    """
-    try:
-        data = request.json
-        ciphertext_hex = data.get('ciphertext')
-        if not ciphertext_hex:
-            return jsonify({'error': 'Missing ciphertext'}), 400
-            
-        ciphertext = bytes.fromhex(ciphertext_hex)
-        
-        shared_secret, token = pqc_service.pqc_manager.decapsulate_secret(ciphertext)
-        
-        if not shared_secret:
-            return jsonify({'error': 'Decapsulation failed'}), 500
-            
-        return jsonify({
-            'status': 'success',
-            'session_token': token
-        })
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# @app.route('/api/pqc/handshake', methods=['POST'])
+# def kyber_handshake():
+#     """
+#     Client sends Kyber Encapsulated Ciphertext.
+#     Server recovers shared secret and returns a Session Token.
+#     """
+#     try:
+#         data = request.json
+#         ciphertext_hex = data.get('ciphertext')
+#         if not ciphertext_hex:
+#             return jsonify({'error': 'Missing ciphertext'}), 400
+#             
+#         ciphertext = bytes.fromhex(ciphertext_hex)
+#         
+#         shared_secret, token = pqc_service.pqc_manager.decapsulate_secret(ciphertext)
+#         
+#         if not shared_secret:
+#             return jsonify({'error': 'Decapsulation failed'}), 500
+#             
+#         return jsonify({
+#             'status': 'success',
+#             'session_token': token
+#         })
+#     except Exception as e:
+#         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/pqc/photos/<int:event_id>', methods=['GET'])
-def get_encrypted_photos(event_id):
-    """
-    Get list of event photos, ENCRYPTED with the session key.
-    Requires 'X-Session-Token' header.
-    """
-    token = request.headers.get('X-Session-Token')
-    if not token:
-        return jsonify({'error': 'Missing session token'}), 401
-    
-    try:
-        # Fetch actual photos
-        # For demo, we just dump all photos for the event from DB
-        photos = events_db.get_event_photos(event_id)
-        
-        # Prepare data to encrypt (list of filenames/paths)
-        payload = str([p['filename'] for p in photos]).encode('utf-8')
-        
-        # Quantum-Safe Encryption (AES-GCM via Kyber Key)
-        encrypted_blob = pqc_service.pqc_manager.encrypt_data(token, payload)
-        
-        return jsonify({
-            'status': 'success', 
-            'encrypted_data': encrypted_blob.hex(),
-            'message': 'Data secured with Post-Quantum Cryptography (Kyber-1024 + AES-GCM)'
-        })
+# @app.route('/api/pqc/photos/<int:event_id>', methods=['GET'])
+# def get_encrypted_photos(event_id):
+#     """
+#     Get list of event photos, ENCRYPTED with the session key.
+#     Requires 'X-Session-Token' header.
+#     """
+#     token = request.headers.get('X-Session-Token')
+#     if not token:
+#         return jsonify({'error': 'Missing session token'}), 401
+#     
+#     try:
+#         # Fetch actual photos
+#         # For demo, we just dump all photos for the event from DB
+#         photos = events_db.get_event_photos(event_id)
+#         
+#         # Prepare data to encrypt (list of filenames/paths)
+#         payload = str([p['filename'] for p in photos]).encode('utf-8')
+#         
+#         # Quantum-Safe Encryption (AES-GCM via Kyber Key)
+#         encrypted_blob = pqc_service.pqc_manager.encrypt_data(token, payload)
+#         
+#         return jsonify({
+#             'status': 'success', 
+#             'encrypted_data': encrypted_blob.hex(),
+#             'message': 'Data secured with Post-Quantum Cryptography (Kyber-1024 + AES-GCM)'
+#         })
         
     except ValueError:
         return jsonify({'error': 'Invalid or expired session'}), 403
