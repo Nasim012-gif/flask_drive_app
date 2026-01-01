@@ -84,10 +84,16 @@ def get_base_url():
 
 @app.route('/')
 def index():
-    """Station Dashboard (ShareIt Mode)."""
+    """GetPhotos Landing Page."""
+    return render_template('index.html')
+
+
+@app.route('/station')
+def station_dashboard():
+    """AirDrop Station Dashboard."""
     maybe_sync_db('pull')
     
-    # 1. Get or Create the Personal Station
+    # Get or Create the Personal Station
     station_id = get_or_create_station()
     station = events_db.get_event(station_id)
     
