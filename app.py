@@ -755,7 +755,15 @@ def create_manual_event():
         
         # Add photos to database
         for photo_id in data['photo_ids']:
-            events_db.add_photo_to_event(event_id, f'cloudinary://{photo_id}', photo_id)
+            # photo_id is the Cloudinary public_id
+            events_db.add_photo_with_cloudinary(
+                event_id=event_id,
+                filename=f"{photo_id}.jpg",
+                local_path=None,
+                cloudinary_url=f"https://res.cloudinary.com/{os.getenv('CLOUDINARY_CLOUD_NAME')}/image/upload/{photo_id}",
+                cloudinary_public_id=photo_id,
+                file_size=0
+            )
         
         # Generate QR code
         qr_path = qr_generator.generate_event_qr(event_id, base_url=get_base_url())
