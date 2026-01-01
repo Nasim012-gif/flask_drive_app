@@ -1465,3 +1465,10 @@ if __name__ == '__main__':
     else:
         # On Render, SSL is handled by the platform
         app.run(debug=False, port=port, host='0.0.0.0')
+
+
+@app.route('/manual-upload')
+def manual_upload_page():
+    """Manual upload page - web-based photo selection and upload."""
+    return render_template('manual_upload.html')
+
