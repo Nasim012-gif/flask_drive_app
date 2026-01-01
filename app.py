@@ -657,6 +657,48 @@ def create_event():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/events/manual', methods=['POST'])
+@auth.login_required
+def create_manual_event():
+    """Create a Drive-backed event for Manual Upload."""
+    try:
+        data = request.get_json()
+        user = auth.get_current_user()
+        
+        # Validate required fields
+        required_fields = ['name', 'drive_folder_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Set expiration to 24 hours from now
+        expires_at = datetime.now() + timedelta(hours=24)
+        
+        # Create Drive-backed event
+        event_id = events_db.create_manual_event(
+            user_id=user['id'],
+            name=data['name'],
+            drive_folder_id=data['drive_folder_id'],
+            refresh_token=data.get('refresh_token', ''),
+            photo_count=data.get('photo_count', 0),
+            expires_at=expires_at
+        )
+        
+        # Generate QR code
+        qr_path = qr_generator.generate_event_qr(event_id, base_url=get_base_url())
+        events_db.update_event_qr_path(event_id, qr_path)
+        
+        return jsonify({
+            'status': 'success',
+            'event_id': event_id,
+            'qr_code_url': f'/api/events/{event_id}/qr',
+            'expires_at': expires_at.isoformat(),
+            'storage_type': 'drive'
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/events/<int:event_id>', methods=['GET'])
 def get_event(event_id):
     """Get event details."""
@@ -697,6 +739,18 @@ def get_event_qr(event_id):
             qr_path = event['qr_code_path']
         
         return send_file(qr_path, mimetype='image/png')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/time-remaining', methods=['GET'])
+def get_event_time_remaining(event_id):
+    """Get time remaining until event expiration (for countdown timer)."""
+    try:
+        time_info = events_db.get_event_time_remaining(event_id)
+        if time_info is None:
+            return jsonify({'error': 'Event not found or no expiration set'}), 404
+        return jsonify(time_info), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

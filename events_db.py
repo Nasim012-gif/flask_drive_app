@@ -50,6 +50,11 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 qr_code_path TEXT,
                 local_gallery_path TEXT,
+                storage_type TEXT DEFAULT 'cloudinary',
+                drive_folder_id TEXT,
+                photographer_refresh_token TEXT,
+                expires_at TIMESTAMP,
+                auto_delete_scheduled BOOLEAN DEFAULT 0,
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
@@ -318,6 +323,68 @@ def update_user_password(user_id, password_hash):
             (password_hash, user_id)
         )
         conn.commit()
+
+
+# ==================== MANUAL UPLOAD (DRIVE-BACKED EVENTS) ====================
+
+def create_manual_event(user_id, name, drive_folder_id, refresh_token, photo_count, expires_at):
+    """Create a Drive-backed event with expiration."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            '''INSERT INTO events (
+                user_id, name, date, location, storage_type, 
+                drive_folder_id, photographer_refresh_token, expires_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (user_id, name, datetime.now().strftime('%Y-%m-%d'), 
+             'Manual Upload', 'drive', drive_folder_id, refresh_token, expires_at)
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_expired_events():
+    """Get all events that have expired and not yet deleted."""
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            '''SELECT * FROM events 
+               WHERE expires_at IS NOT NULL 
+               AND expires_at < ? 
+               AND auto_delete_scheduled = 0''',
+            (datetime.now(),)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_event_deleted(event_id):
+    """Mark event as deleted after cleanup."""
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE events SET auto_delete_scheduled = 1 WHERE id = ?',
+            (event_id,)
+        )
+        conn.commit()
+
+
+def get_event_time_remaining(event_id):
+    """Get time remaining until event expiration."""
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(
+            'SELECT expires_at FROM events WHERE id = ?',
+            (event_id,)
+        )
+        row = cursor.fetchone()
+        if row and row['expires_at']:
+            expires_at = datetime.fromisoformat(row['expires_at'])
+            now = datetime.now()
+            if now >= expires_at:
+                return {'expired': True, 'hours': 0, 'minutes': 0}
+            delta = expires_at - now
+            hours = delta.seconds // 3600
+            minutes = (delta.seconds % 3600) // 60
+            return {'expired': False, 'hours': hours, 'minutes': minutes}
+        return None
 
 
 def update_photo_cloudinary_info(local_path, cloudinary_url, cloudinary_public_id, file_size):
