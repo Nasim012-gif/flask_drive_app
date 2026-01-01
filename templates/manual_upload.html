@@ -335,13 +335,23 @@
 
                 const eventData = await eventResponse.json();
 
+                console.log('Event response:', eventData);
+
+                if (eventData.error) {
+                    throw new Error(eventData.error);
+                }
+
                 // Show QR code
                 document.getElementById('qrImage').src = eventData.qr_code_url;
+                document.querySelector('.success-message').textContent =
+                    `✅ Success! Event ID: ${eventData.event_id}`;
                 document.getElementById('qrContainer').style.display = 'block';
                 status.style.display = 'none';
                 progressBar.style.display = 'none';
             } catch (error) {
+                console.error('Event creation error:', error);
                 status.textContent = 'Error creating event: ' + error.message;
+                status.style.color = '#ff3b30';
                 uploadBtn.disabled = false;
             }
         }
