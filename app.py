@@ -661,25 +661,45 @@ def create_event():
 def upload_manual_photo():
     """Upload a single photo for manual upload (from web browser)."""
     try:
+        print("=== Manual Upload Debug ===")
+        print(f"Files in request: {request.files}")
+        
         if 'photo' not in request.files:
             return jsonify({'error': 'No photo provided'}), 400
         
         photo = request.files['photo']
         event_name = request.form.get('event_name', 'temp_event')
         
+        print(f"Photo filename: {photo.filename}")
+        print(f"Event name: {event_name}")
+        
         # Use anonymous user ID (0) for manual uploads
         user_id = 0
         
+        # Check if Cloudinary is configured
+        if not cloudinary_service.is_configured():
+            print("ERROR: Cloudinary not configured!")
+            return jsonify({'error': 'Cloudinary not configured'}), 500
+        
         # Save temporarily
-        temp_path = f'/tmp/{photo.filename}'
+        import tempfile
+        import os
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, photo.filename)
+        
+        print(f"Saving to: {temp_path}")
         photo.save(temp_path)
+        print("File saved successfully")
         
         # Upload to Cloudinary
+        print("Uploading to Cloudinary...")
         result = cloudinary_service.upload_photo(temp_path, user_id, 0, photo.filename)
+        print(f"Cloudinary result: {result}")
         
         # Clean up temp file
         if os.path.exists(temp_path):
             os.remove(temp_path)
+            print("Temp file cleaned up")
         
         if result:
             return jsonify({
@@ -688,9 +708,13 @@ def upload_manual_photo():
                 'public_id': result['public_id']
             }), 200
         else:
+            print("ERROR: Cloudinary upload returned None")
             return jsonify({'error': 'Upload to Cloudinary failed'}), 500
             
     except Exception as e:
+        print(f"EXCEPTION in upload_manual_photo: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
