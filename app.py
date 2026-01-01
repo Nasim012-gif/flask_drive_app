@@ -658,23 +658,24 @@ def create_event():
 
 
 @app.route('/api/upload/manual', methods=['POST'])
-@auth.login_required
 def upload_manual_photo():
-    """Upload a single photo for manual upload (from mobile app)."""
+    """Upload a single photo for manual upload (from web browser)."""
     try:
         if 'photo' not in request.files:
             return jsonify({'error': 'No photo provided'}), 400
         
         photo = request.files['photo']
-        user = auth.get_current_user()
         event_name = request.form.get('event_name', 'temp_event')
+        
+        # Use anonymous user ID (0) for manual uploads
+        user_id = 0
         
         # Save temporarily
         temp_path = f'/tmp/{photo.filename}'
         photo.save(temp_path)
         
-        # Upload to Cloudinary (use temp event ID 0, will update later)
-        result = cloudinary_service.upload_photo(temp_path, user['id'], 0, photo.filename)
+        # Upload to Cloudinary
+        result = cloudinary_service.upload_photo(temp_path, user_id, 0, photo.filename)
         
         # Clean up temp file
         if os.path.exists(temp_path):
@@ -694,12 +695,13 @@ def upload_manual_photo():
 
 
 @app.route('/api/events/manual', methods=['POST'])
-@auth.login_required
 def create_manual_event():
-    """Create a Cloudinary-backed event for Manual Upload."""
+    """Create a Cloudinary-backed event for Manual Upload (no auth required)."""
     try:
         data = request.get_json()
-        user = auth.get_current_user()
+        
+        # Use anonymous user ID (0) for manual uploads
+        user_id = 0
         
         # Validate required fields
         required_fields = ['name', 'photo_ids']
@@ -712,7 +714,7 @@ def create_manual_event():
         
         # Create event
         event_id = events_db.create_event_for_user(
-            user_id=user['id'],
+            user_id=user_id,
             name=data['name'],
             date=datetime.now().strftime('%Y-%m-%d'),
             location='Manual Upload',
@@ -720,10 +722,12 @@ def create_manual_event():
         )
         
         # Store photo IDs and set expiration
-        events_db.conn.execute(
-            'UPDATE events SET expires_at = ?, storage_type = ? WHERE id = ?',
-            (expires_at, 'cloudinary', event_id)
-        )
+        with events_db.get_db() as conn:
+            conn.execute(
+                'UPDATE events SET expires_at = ?, storage_type = ? WHERE id = ?',
+                (expires_at, 'cloudinary', event_id)
+            )
+            conn.commit()
         
         # Add photos to database
         for photo_id in data['photo_ids']:
