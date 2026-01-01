@@ -186,7 +186,7 @@
             <div class="upload-icon">📁</div>
             <h3>Click to select photos</h3>
             <p style="color: #999; margin-top: 10px;">or drag and drop here</p>
-            <p style="color: #999; font-size: 14px;">Supports: JPG, PNG (max 100 photos)</p>
+            <p style="color: #999; font-size: 14px;">Supports: JPG, PNG (max 500 photos)</p>
         </div>
 
         <input type="file" id="fileInput" multiple accept="image/*">
@@ -242,9 +242,9 @@
         function handleFiles(files) {
             selectedFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
 
-            if (selectedFiles.length > 100) {
-                alert('Maximum 100 photos allowed');
-                selectedFiles = selectedFiles.slice(0, 100);
+            if (selectedFiles.length > 500) {
+                alert('Maximum 500 photos allowed');
+                selectedFiles = selectedFiles.slice(0, 500);
             }
 
             displayPhotos();
