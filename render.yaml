@@ -1,0 +1,21 @@
+# Render Cron Job Configuration
+# Add this to your Render dashboard or render.yaml
+
+services:
+  - type: web
+    name: getphotos
+    env: python
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    
+  - type: cron
+    name: cleanup-expired-events
+    env: python
+    schedule: "0 * * * *"  # Every hour
+    buildCommand: python -m pip install -r requirements.txt
+    startCommand: python cleanup_service.py
+    envVars:
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
