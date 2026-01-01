@@ -657,6 +657,42 @@ def create_event():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/upload/manual', methods=['POST'])
+@auth.login_required
+def upload_manual_photo():
+    """Upload a single photo for manual upload (from mobile app)."""
+    try:
+        if 'photo' not in request.files:
+            return jsonify({'error': 'No photo provided'}), 400
+        
+        photo = request.files['photo']
+        user = auth.get_current_user()
+        event_name = request.form.get('event_name', 'temp_event')
+        
+        # Save temporarily
+        temp_path = f'/tmp/{photo.filename}'
+        photo.save(temp_path)
+        
+        # Upload to Cloudinary (use temp event ID 0, will update later)
+        result = cloudinary_service.upload_photo(temp_path, user['id'], 0, photo.filename)
+        
+        # Clean up temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        if result:
+            return jsonify({
+                'status': 'success',
+                'url': result['url'],
+                'public_id': result['public_id']
+            }), 200
+        else:
+            return jsonify({'error': 'Upload to Cloudinary failed'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/events/manual', methods=['POST'])
 @auth.login_required
 def create_manual_event():

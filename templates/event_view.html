@@ -460,6 +460,83 @@
         function resetApp() {
             window.location.reload();
         }
+
+        // Countdown Timer Logic
+        let expirationTime = null;
+
+        async function fetchTimeRemaining() {
+            try {
+                const response = await fetch('/api/events/{{ event.id }}/time-remaining');
+                const data = await response.json();
+
+                if (data.expired) {
+                    showExpiredMessage();
+                    return;
+                }
+
+                // Calculate expiration timestamp
+                const now = new Date();
+                const totalSeconds = (data.hours * 3600) + (data.minutes * 60);
+                expirationTime = new Date(now.getTime() + (totalSeconds * 1000));
+
+                // Show timer
+                document.getElementById('countdownTimer').style.display = 'block';
+
+                // Start updating
+                updateCountdown();
+                setInterval(updateCountdown, 1000);
+            } catch (error) {
+                console.error('Error fetching time remaining:', error);
+            }
+        }
+
+        function updateCountdown() {
+            if (!expirationTime) return;
+
+            const now = new Date();
+            const diff = expirationTime - now;
+
+            if (diff <= 0) {
+                showExpiredMessage();
+                return;
+            }
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            // Format time
+            let timeText = '';
+            if (hours > 0) {
+                timeText = `${hours}h ${minutes}m ${seconds}s`;
+            } else if (minutes > 0) {
+                timeText = `${minutes}m ${seconds}s`;
+            } else {
+                timeText = `${seconds}s`;
+            }
+
+            document.getElementById('countdownTime').textContent = timeText;
+
+            // Update visual state
+            const timer = document.getElementById('countdownTimer');
+            timer.className = 'countdown-timer';
+
+            if (hours < 1) {
+                timer.classList.add('critical');
+            } else if (hours < 6) {
+                timer.classList.add('warning');
+            }
+        }
+
+        function showExpiredMessage() {
+            const timer = document.getElementById('countdownTimer');
+            timer.className = 'countdown-timer critical';
+            timer.style.display = 'block';
+            document.getElementById('countdownTime').textContent = 'Event Expired';
+        }
+
+        // Initialize countdown on page load
+        fetchTimeRemaining();
     </script>
 </body>
 
