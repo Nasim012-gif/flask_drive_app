@@ -46,6 +46,60 @@
             margin: 0;
         }
 
+        /* Countdown Timer */
+        .countdown-timer {
+            margin-top: 15px;
+            padding: 12px 20px;
+            background: rgba(0, 122, 255, 0.1);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 122, 255, 0.3);
+        }
+
+        .countdown-timer.warning {
+            background: rgba(255, 159, 10, 0.1);
+            border-color: rgba(255, 159, 10, 0.5);
+        }
+
+        .countdown-timer.critical {
+            background: rgba(255, 59, 48, 0.1);
+            border-color: rgba(255, 59, 48, 0.5);
+            animation: pulse-warning 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-warning {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .countdown-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #8E8E93;
+            margin-bottom: 5px;
+        }
+
+        .countdown-time {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .countdown-timer.warning .countdown-time {
+            color: #FF9F0A;
+        }
+
+        .countdown-timer.critical .countdown-time {
+            color: #FF3B30;
+        }
+
         /* Main Interaction Area */
         .beam-zone {
             position: relative;
@@ -220,6 +274,12 @@
     <div class="header" id="header">
         <h1>AirDrop Station</h1>
         <p class="subtitle">Connected to {{ event.name }}</p>
+
+        <!-- Countdown Timer -->
+        <div class="countdown-timer" id="countdownTimer" style="display: none;">
+            <div class="countdown-label">Event Expires In</div>
+            <div class="countdown-time" id="countdownTime">Loading...</div>
+        </div>
     </div>
 
     <!-- Scanning Visual -->
