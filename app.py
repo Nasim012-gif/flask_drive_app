@@ -660,13 +660,13 @@ def create_event():
 @app.route('/api/events/manual', methods=['POST'])
 @auth.login_required
 def create_manual_event():
-    """Create a Drive-backed event for Manual Upload."""
+    """Create a Cloudinary-backed event for Manual Upload."""
     try:
         data = request.get_json()
         user = auth.get_current_user()
         
         # Validate required fields
-        required_fields = ['name', 'drive_folder_id']
+        required_fields = ['name', 'photo_ids']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -674,15 +674,24 @@ def create_manual_event():
         # Set expiration to 24 hours from now
         expires_at = datetime.now() + timedelta(hours=24)
         
-        # Create Drive-backed event
-        event_id = events_db.create_manual_event(
+        # Create event
+        event_id = events_db.create_event_for_user(
             user_id=user['id'],
             name=data['name'],
-            drive_folder_id=data['drive_folder_id'],
-            refresh_token=data.get('refresh_token', ''),
-            photo_count=data.get('photo_count', 0),
-            expires_at=expires_at
+            date=datetime.now().strftime('%Y-%m-%d'),
+            location='Manual Upload',
+            description=f"Manual upload with {data.get('photo_count', 0)} photos"
         )
+        
+        # Store photo IDs and set expiration
+        events_db.conn.execute(
+            'UPDATE events SET expires_at = ?, storage_type = ? WHERE id = ?',
+            (expires_at, 'cloudinary', event_id)
+        )
+        
+        # Add photos to database
+        for photo_id in data['photo_ids']:
+            events_db.add_photo_to_event(event_id, f'cloudinary://{photo_id}', photo_id)
         
         # Generate QR code
         qr_path = qr_generator.generate_event_qr(event_id, base_url=get_base_url())
@@ -693,7 +702,7 @@ def create_manual_event():
             'event_id': event_id,
             'qr_code_url': f'/api/events/{event_id}/qr',
             'expires_at': expires_at.isoformat(),
-            'storage_type': 'drive'
+            'storage_type': 'cloudinary'
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500

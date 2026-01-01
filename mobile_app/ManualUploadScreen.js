@@ -1,33 +1,24 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as Google from 'expo-auth-session/providers/google';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const SERVER_URL = 'https://nasim-event-app-2025.onrender.com';
 
 export default function ManualUploadScreen({ navigation }) {
     const [selectedPhotos, setSelectedPhotos] = useState([]);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
-    const [googleToken, setGoogleToken] = useState(null);
+    const [authToken, setAuthToken] = useState(null);
 
-    // Google Sign-In Configuration
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        expoClientId: 'YOUR_EXPO_CLIENT_ID',
-        iosClientId: 'YOUR_IOS_CLIENT_ID',
-        androidClientId: 'YOUR_ANDROID_CLIENT_ID',
-        webClientId: 'YOUR_WEB_CLIENT_ID',
-        scopes: ['https://www.googleapis.com/auth/drive.file'],
-    });
-
-    // Handle Google OAuth
+    // Get auth token from storage
     React.useEffect(() => {
-        if (response?.type === 'success') {
-            const { authentication } = response;
-            setGoogleToken(authentication.accessToken);
-            AsyncStorage.setItem('googleToken', authentication.accessToken);
-            AsyncStorage.setItem('googleRefreshToken', authentication.refreshToken);
-        }
-    }, [response]);
+        const loadToken = async () => {
+            const token = await AsyncStorage.getItem('authToken');
+            setAuthToken(token);
+        };
+        loadToken();
+    }, []);
 
     // Request Photo Library Permission
     const requestPermissions = async () => {
@@ -56,10 +47,11 @@ export default function ManualUploadScreen({ navigation }) {
         }
     };
 
-    // Upload Photos to Google Drive
-    const uploadToDrive = async () => {
-        if (!googleToken) {
-            Alert.alert('Sign In Required', 'Please sign in with Google first.');
+    // Upload Photos to Cloudinary via Backend
+    const uploadToCloudinary = async () => {
+        if (!authToken) {
+            Alert.alert('Login Required', 'Please log in first.');
+            navigation.navigate('Login');
             return;
         }
 
@@ -72,24 +64,48 @@ export default function ManualUploadScreen({ navigation }) {
         setUploadProgress({ current: 0, total: selectedPhotos.length });
 
         try {
-            // Create event folder in Drive
             const eventName = `Event_${new Date().getTime()}`;
-            const folderId = await createDriveFolder(googleToken, eventName);
+            const photoUrls = [];
 
-            // Upload each photo
+            // Upload each photo to backend (which uploads to Cloudinary)
             for (let i = 0; i < selectedPhotos.length; i++) {
                 const photo = selectedPhotos[i];
-                await uploadPhotoToDrive(googleToken, photo, folderId);
+
+                // Create FormData for multipart/form-data upload
+                const formData = new FormData();
+                formData.append('photo', {
+                    uri: photo.uri,
+                    type: 'image/jpeg',
+                    name: photo.fileName || `photo_${Date.now()}.jpg`,
+                });
+                formData.append('event_name', eventName);
+
+                const response = await fetch(`${SERVER_URL}/api/upload/manual`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: formData,
+                });
+
+                const data = await response.json();
+                if (data.url) {
+                    photoUrls.push(data.public_id);
+                }
+
                 setUploadProgress({ current: i + 1, total: selectedPhotos.length });
             }
 
-            // Create event in backend with Drive folder ID
-            const eventResponse = await fetch('https://nasim-event-app-2025.onrender.com/api/events/manual', {
+            // Create event with Cloudinary photos
+            const eventResponse = await fetch(`${SERVER_URL}/api/events/manual`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`,
+                },
                 body: JSON.stringify({
                     name: eventName,
-                    drive_folder_id: folderId,
+                    photo_ids: photoUrls,
                     photo_count: selectedPhotos.length,
                 })
             });
@@ -98,57 +114,13 @@ export default function ManualUploadScreen({ navigation }) {
 
             setUploading(false);
             Alert.alert('Success!', `QR Code generated! Event ID: ${eventData.event_id}`);
-            navigation.navigate('QRCode', { eventId: eventData.event_id });
+            // Navigate back or to event details
+            navigation.goBack();
 
         } catch (error) {
             setUploading(false);
             Alert.alert('Upload Failed', error.message);
         }
-    };
-
-    // Create folder in Google Drive
-    const createDriveFolder = async (token, folderName) => {
-        const metadata = {
-            name: folderName,
-            mimeType: 'application/vnd.google-apps.folder',
-        };
-
-        const response = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(metadata),
-        });
-
-        const data = await response.json();
-        return data.id;
-    };
-
-    // Upload single photo to Drive
-    const uploadPhotoToDrive = async (token, photo, folderId) => {
-        const formData = new FormData();
-        formData.append('file', {
-            uri: photo.uri,
-            type: 'image/jpeg',
-            name: photo.fileName || `photo_${Date.now()}.jpg`,
-        });
-
-        const metadata = {
-            name: photo.fileName || `photo_${Date.now()}.jpg`,
-            parents: [folderId],
-        };
-
-        formData.append('metadata', JSON.stringify(metadata));
-
-        await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-            },
-            body: formData,
-        });
     };
 
     return (
@@ -159,15 +131,8 @@ export default function ManualUploadScreen({ navigation }) {
                 <Text style={styles.subtitle}>Select photos from your camera roll</Text>
             </View>
 
-            {/* Google Sign-In */}
-            {!googleToken && (
-                <TouchableOpacity style={styles.googleBtn} onPress={() => promptAsync()}>
-                    <Text style={styles.googleBtnText}>🔐 Sign in with Google Drive</Text>
-                </TouchableOpacity>
-            )}
-
             {/* Photo Picker */}
-            {googleToken && !uploading && (
+            {authToken && !uploading && (
                 <TouchableOpacity style={styles.pickerBtn} onPress={pickPhotos}>
                     <Text style={styles.pickerBtnText}>
                         {selectedPhotos.length > 0
@@ -175,6 +140,12 @@ export default function ManualUploadScreen({ navigation }) {
                             : '+ Select Photos'}
                     </Text>
                 </TouchableOpacity>
+            )}
+
+            {!authToken && (
+                <Text style={{ textAlign: 'center', color: '#6c757d', marginTop: 20 }}>
+                    Please log in to upload photos
+                </Text>
             )}
 
             {/* Photo Grid */}
@@ -190,7 +161,7 @@ export default function ManualUploadScreen({ navigation }) {
 
             {/* Upload Button */}
             {selectedPhotos.length > 0 && !uploading && (
-                <TouchableOpacity style={styles.uploadBtn} onPress={uploadToDrive}>
+                <TouchableOpacity style={styles.uploadBtn} onPress={uploadToCloudinary}>
                     <Text style={styles.uploadBtnText}>🚀 Upload & Generate QR</Text>
                 </TouchableOpacity>
             )}
@@ -234,18 +205,6 @@ const styles = StyleSheet.create({
     subtitle: {
         fontSize: 16,
         color: '#6c757d',
-    },
-    googleBtn: {
-        backgroundColor: '#4285F4',
-        padding: 16,
-        borderRadius: 12,
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    googleBtnText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: '600',
     },
     pickerBtn: {
         backgroundColor: '#667eea',
