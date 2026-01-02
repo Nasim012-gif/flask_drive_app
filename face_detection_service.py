@@ -1,36 +1,32 @@
 """
-Face Detection and Matching Service using DeepFace
-
-This service handles:
-- Downloading photos from Cloudinary
-- Detecting faces using DeepFace
-- Storing face embeddings in database
-- Matching guest selfies against event photos
+Face Detection Service using face-recognition library
+Lightweight alternative to DeepFace - deploys reliably on free tiers
 """
 
-import os
-import numpy as np
+import face_recognition
 import requests
-from io import BytesIO
 from PIL import Image
-from deepface import DeepFace
+from io import BytesIO
+import numpy as np
 import tempfile
+import os
+
+
+def is_configured():
+    """Check if face recognition is available"""
+    try:
+        import face_recognition
+        return True
+    except ImportError:
+        return False
+
 
 class FaceDetectionService:
+    """Face detection and matching using face-recognition library"""
     
-    def __init__(self, model_name='Facenet512'):
-        """
-        Initialize face detection service
-        
-        Args:
-            model_name: DeepFace model to use
-                - 'VGG-Face': Accurate, slower
-                - 'Facenet': Fast, good accuracy
-                - 'Facenet512': Best accuracy, moderate speed
-                - 'ArcFace': State-of-the-art, slower
-        """
-        self.model_name = model_name
-        print(f"[FaceDetection] Initialized with model: {model_name}")
+    def __init__(self):
+        """Initialize face detection service"""
+        print("[FaceDetection] Initialized with face-recognition library")
     
     def download_image_from_url(self, url):
         """Download image from Cloudinary URL"""
@@ -63,134 +59,114 @@ class FaceDetectionService:
             if image is None:
                 return []
             
-            # Save to temp file (DeepFace requires file path)
-            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
-                image.save(tmp.name)
-                temp_path = tmp.name
+            # Convert PIL Image to numpy array
+            image_np = np.array(image)
             
-            try:
-                # Detect and extract faces
-                faces = DeepFace.extract_faces(
-                    img_path=temp_path,
-                    detector_backend='opencv',
-                    enforce_detection=False
-                )
+            # Detect face locations (top, right, bottom, left)
+            face_locations = face_recognition.face_locations(image_np, model='hog')
+            
+            if not face_locations:
+                print(f"[FaceDetection] No faces detected")
+                return []
+            
+            # Generate face encodings (128-dimensional embeddings)
+            face_encodings = face_recognition.face_encodings(image_np, face_locations)
+            
+            results = []
+            for i, (encoding, location) in enumerate(zip(face_encodings, face_locations)):
+                top, right, bottom, left = location
                 
-                if not faces:
-                    print(f"[FaceDetection] No faces detected")
-                    return []
-                
-                # Generate embeddings for each face
-                results = []
-                for i, face_obj in enumerate(faces):
-                    try:
-                        # Get face region
-                        facial_area = face_obj.get('facial_area', {})
-                        
-                        # Generate embedding
-                        embedding_obj = DeepFace.represent(
-                            img_path=temp_path,
-                            model_name=self.model_name,
-                            detector_backend='skip',  # Already detected
-                            enforce_detection=False
-                        )
-                        
-                        if embedding_obj and len(embedding_obj) > i:
-                            embedding = embedding_obj[i]['embedding']
-                            
-                            results.append({
-                                'embedding': embedding,
-                                'location': {
-                                    'x': facial_area.get('x', 0),
-                                    'y': facial_area.get('y', 0),
-                                    'w': facial_area.get('w', 0),
-                                    'h': facial_area.get('h', 0)
-                                },
-                                'confidence': face_obj.get('confidence', 0)
-                            })
-                            print(f"[FaceDetection] Face {i+1} processed")
-                    except Exception as e:
-                        print(f"[FaceDetection] Error processing face {i}: {e}")
-                        continue
-                
-                return results
-                
-            finally:
-                # Clean up temp file
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-        
+                results.append({
+                    'embedding': encoding.tolist(),  # Convert numpy array to list
+                    'location': {
+                        'x': left,
+                        'y': top,
+                        'w': right - left,
+                        'h': bottom - top
+                    },
+                    'confidence': 1.0  # face-recognition doesn't provide confidence scores
+                })
+                print(f"[FaceDetection] Face {i+1} processed")
+            
+            print(f"[FaceDetection] Found {len(results)} faces")
+            return results
+            
         except Exception as e:
-            print(f"[FaceDetection] Error in detect_faces: {e}")
+            print(f"[FaceDetection] Error processing image: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
-    def compare_faces(self, embedding1, embedding2):
+    def compare_faces(self, embedding1, embedding2, tolerance=0.6):
         """
         Compare two face embeddings
         
+        Args:
+            embedding1: First face embedding (list or numpy array)
+            embedding2: Second face embedding (list or numpy array)
+            tolerance: How much distance between faces to consider a match (default 0.6)
+        
         Returns:
-            distance (float): Lower is more similar (0.0 = identical)
+            distance: Distance between faces (lower = more similar)
         """
         try:
-            # Convert to numpy arrays
-            emb1 = np.array(embedding1)
-            emb2 = np.array(embedding2)
+            # Convert to numpy arrays if needed
+            if not isinstance(embedding1, np.ndarray):
+                embedding1 = np.array(embedding1)
+            if not isinstance(embedding2, np.ndarray):
+                embedding2 = np.array(embedding2)
             
-            # Calculate cosine similarity
-            similarity = np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2))
+            # Calculate Euclidean distance
+            distance = np.linalg.norm(embedding1 - embedding2)
             
-            # Convert to distance (0 = identical, 1 = completely different)
-            distance = 1 - similarity
-            
-            return float(distance)
+            return distance
         except Exception as e:
             print(f"[FaceDetection] Error comparing faces: {e}")
-            return 1.0  # Return max distance on error
+            return 1.0  # Return high distance on error
     
     def find_matches(self, guest_embedding, event_embeddings, threshold=0.6):
         """
-        Find matching photos for a guest selfie
+        Find matching faces in event photos
         
         Args:
             guest_embedding: Guest's face embedding
-            event_embeddings: List of (photo_id, embedding) tuples
-            threshold: Maximum distance for a match (default 0.6)
+            event_embeddings: List of dict with 'embedding', 'photo_id', 'confidence'
+            threshold: Distance threshold for matches (lower = stricter)
         
         Returns:
             List of matches with similarity scores
         """
-        matches = []
-        
-        for photo_id, embedding, face_location in event_embeddings:
-            distance = self.compare_faces(guest_embedding, embedding)
+        try:
+            matches = []
             
-            if distance < threshold:
-                similarity = 1 - distance
-                confidence = 'high' if distance < 0.4 else 'medium'
+            for face_data in event_embeddings:
+                stored_embedding = face_data['embedding']
                 
-                matches.append({
-                    'photo_id': photo_id,
-                    'distance': distance,
-                    'similarity': similarity,
-                    'confidence': confidence,
-                    'face_location': face_location
-                })
-        
-        # Sort by similarity (highest first)
-        matches.sort(key=lambda x: x['similarity'], reverse=True)
-        
-        print(f"[FaceDetection] Found {len(matches)} matches (threshold: {threshold})")
-        return matches
+                # Compare faces
+                distance = self.compare_faces(guest_embedding, stored_embedding)
+                
+                # Check if it's a match (lower distance = better match)
+                if distance <= threshold:
+                    similarity = 1.0 - distance  # Convert distance to similarity score
+                    matches.append({
+                        'photo_id': face_data['photo_id'],
+                        'similarity': max(0, min(1, similarity)),  # Clamp to [0, 1]
+                        'confidence': face_data.get('confidence', 1.0),
+                        'distance': distance
+                    })
+            
+            # Sort by similarity (highest first)
+            matches.sort(key=lambda x: x['similarity'], reverse=True)
+            
+            print(f"[FaceDetection] Found {len(matches)} matches out of {len(event_embeddings)} faces")
+            return matches
+            
+        except Exception as e:
+            print(f"[FaceDetection] Error finding matches: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
 
-# Global instance
-face_service = FaceDetectionService(model_name='Facenet512')
-
-
-def is_configured():
-    """Check if face detection is available"""
-    try:
-        import deepface
-        return True
-    except ImportError:
-        return False
+# Create global instance
+face_service = FaceDetectionService()
