@@ -789,10 +789,8 @@ def create_manual_event():
         else:
             print(f"✗ WARNING: Event {event_id} NOT found in database after creation!")
         
-        # Sync database
-        print("Syncing database...")
-        maybe_sync_db('push')
-        print("Database synced")
+        # Don't sync to Google Drive for Cloudinary events
+        print("Skipping Google Drive sync (Cloudinary event)")
         
         print("=== MANUAL EVENT CREATION SUCCESS ===")
         
@@ -902,7 +900,7 @@ def delete_event_route(event_id):
 @app.route('/event/<int:event_id>')
 def view_event(event_id):
     """Public event details page (for QR code redirect)."""
-    maybe_sync_db('pull')
+    # Don't sync - would overwrite Cloudinary events with Google Drive backup
     event = events_db.get_event(event_id)
     
     if not event:
