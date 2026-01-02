@@ -722,7 +722,9 @@ def upload_manual_photo():
 def create_manual_event():
     """Create a Cloudinary-backed event for Manual Upload (no auth required)."""
     try:
+        print("=== MANUAL EVENT CREATION START ===")
         data = request.get_json()
+        print(f"Request data: {data}")
         
         # Use anonymous user ID (0) for manual uploads
         user_id = 0
@@ -731,12 +733,15 @@ def create_manual_event():
         required_fields = ['name', 'photo_ids']
         for field in required_fields:
             if field not in data:
+                print(f"ERROR: Missing field: {field}")
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Set expiration to 24 hours from now
         expires_at = datetime.now() + timedelta(hours=24)
+        print(f"Expiration set to: {expires_at}")
         
         # Create event
+        print("Creating event in database...")
         event_id = events_db.create_event_for_user(
             user_id=user_id,
             name=data['name'],
@@ -744,17 +749,21 @@ def create_manual_event():
             location='Manual Upload',
             description=f"Manual upload with {data.get('photo_count', 0)} photos"
         )
+        print(f"Event created with ID: {event_id}")
         
         # Store photo IDs and set expiration
+        print("Updating event with expiration and storage type...")
         with events_db.get_db() as conn:
             conn.execute(
                 'UPDATE events SET expires_at = ?, storage_type = ? WHERE id = ?',
                 (expires_at, 'cloudinary', event_id)
             )
             conn.commit()
+            print("Event updated and committed")
         
         # Add photos to database
-        for photo_id in data['photo_ids']:
+        print(f"Adding {len(data['photo_ids'])} photos...")
+        for i, photo_id in enumerate(data['photo_ids']):
             # photo_id is the Cloudinary public_id
             events_db.add_photo_with_cloudinary(
                 event_id=event_id,
@@ -764,10 +773,28 @@ def create_manual_event():
                 cloudinary_public_id=photo_id,
                 file_size=0
             )
+            print(f"  Photo {i+1}/{len(data['photo_ids'])} added")
         
         # Generate QR code
+        print("Generating QR code...")
         qr_path = qr_generator.generate_event_qr(event_id, base_url=get_base_url())
         events_db.update_event_qr_path(event_id, qr_path)
+        print(f"QR code generated: {qr_path}")
+        
+        # Verify event was created
+        print("Verifying event exists in database...")
+        verify_event = events_db.get_event(event_id)
+        if verify_event:
+            print(f"✓ Event {event_id} verified in database")
+        else:
+            print(f"✗ WARNING: Event {event_id} NOT found in database after creation!")
+        
+        # Sync database
+        print("Syncing database...")
+        maybe_sync_db('push')
+        print("Database synced")
+        
+        print("=== MANUAL EVENT CREATION SUCCESS ===")
         
         return jsonify({
             'status': 'success',
@@ -777,6 +804,10 @@ def create_manual_event():
             'storage_type': 'cloudinary'
         }), 201
     except Exception as e:
+        print(f"=== MANUAL EVENT CREATION FAILED ===")
+        print(f"ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
