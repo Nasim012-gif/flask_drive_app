@@ -59,19 +59,34 @@ def init_db():
             )
         ''')
         
-        # Photos table with cloudinary support
+        # Event photos table
         conn.execute('''
             CREATE TABLE IF NOT EXISTS event_photos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id INTEGER NOT NULL,
                 filename TEXT NOT NULL,
-                local_path TEXT NOT NULL,
+                local_path TEXT,
                 drive_file_id TEXT,
                 cloudinary_url TEXT,
                 cloudinary_public_id TEXT,
-                file_size INTEGER DEFAULT 0,
+                file_size INTEGER,
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (event_id) REFERENCES events (id)
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+        ''')
+        
+        # Face embeddings table for AI matching
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS face_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                photo_id INTEGER NOT NULL,
+                embedding BLOB NOT NULL,
+                face_location TEXT,
+                confidence REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+                FOREIGN KEY (photo_id) REFERENCES event_photos(id) ON DELETE CASCADE
             )
         ''')
         
