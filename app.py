@@ -954,10 +954,125 @@ def delete_event_route(event_id):
 def view_event(event_id):
     """Public event details page (for QR code redirect)."""
     # Don't sync - would overwrite Cloudinary events with Google Drive backup
+    event = events_db.get_event(event_id)
+    
+    if not event:
+        return render_template('error.html', message='Event not found'), 404
+    
+    return render_template('event_view.html', event=event)
+
+
+@app.route('/api/events/<int:event_id>/photos/zip', methods=['POST'])
+@auth.login_required
+def upload_event_photos_zip(event_id):
+    """Admin upload of event photos via ZIP file."""
+    maybe_sync_db('pull')
+    user = auth.get_current_user()
+    print(f"DEBUG: ZIP upload started by {user['name']} for event {event_id}")
+    
+    try:
+        # Check if event exists
+        event = events_db.get_event(event_id)
+        if not event:
+            # Fallback: Maybe the DB isn't synced in this worker?
+            print(f"DEBUG: Event {event_id} not found locally. Forcing a Drive pull...")
+            maybe_sync_db('pull', force=True)
+            event = events_db.get_event(event_id)
+            
+        if not event:
+            return jsonify({
+                'error': f'Event #{event_id} not found'
+            }), 404
+            
+        # Ownership Check
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to upload to this event'}), 403
+            
+        # Storage Limit Check
+        storage_info = events_db.get_user_storage(user['id'])
+        if storage_info and storage_info['used'] >= storage_info['limit']:
+            return jsonify({
+                'error': 'Storage limit reached',
+                'message': f"Available: 0 B. Limit: {auth.format_storage(storage_info['limit'])}"
+            }), 403
+        
+        if 'zipfile' not in request.files:
+            return jsonify({'error': 'No ZIP file provided'}), 400
+
+        zip_file = request.files['zipfile']
+        
+        if not zip_file.filename.endswith('.zip'):
+            return jsonify({'error': 'File must be a ZIP archive'}), 400
+        
+        print(f"DEBUG: Processing ZIP file: {zip_file.filename}")
+        
+        # Create temp directory for extraction
+        temp_extract_dir = tempfile.mkdtemp()
+        temp_zip_path = os.path.join(temp_extract_dir, 'upload.zip')
+        
+        try:
+            # Save uploaded ZIP
+            zip_file.save(temp_zip_path)
+            
+            # Extract ZIP
+            with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_extract_dir)
+            
+            # Remove the ZIP file itself
+            os.remove(temp_zip_path)
+            
+            # Find all image files
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', 
+                              '.cr2', '.nef', '.arw', '.dng', '.raw', '.orf', '.rw2'}
+            
+            uploaded_count = 0
+            event_dir = os.path.join(PHOTOS_DIR, str(event_id))
+            if not os.path.exists(event_dir):
+                os.makedirs(event_dir)
+            
+            # Get Drive service for backup
+            service = drive_service.get_drive_service()
+            
+            # Walk through extracted files
+            for root, dirs, files in os.walk(temp_extract_dir):
+                for file in files:
+                    file_lower = file.lower()
+                    if any(file_lower.endswith(ext) for ext in image_extensions):
+                        source_path = os.path.join(root, file)
+                        filename = secure_filename(file)
+                        
+                        # Avoid duplicates
+                        dest_path = os.path.join(event_dir, filename)
+                        counter = 1
+                        while os.path.exists(dest_path):
+                            name, ext = os.path.splitext(filename)
+                            filename = f"{name}_{counter}{ext}"
+                            dest_path = os.path.join(event_dir, filename)
+                            counter += 1
+                        
+                        # Copy file to event directory
+                        shutil.copy2(source_path, dest_path)
+                        file_size = os.path.getsize(dest_path)
+                        
+                        # Cloudinary Upload (Sync for immediate feedback in ZIP)
+                        cloudinary_info = None
+                        try:
+                            cloudinary_info = cloudinary_service.upload_photo(dest_path, user['id'], event_id)
+                        except Exception as ce:
+                            print(f"WARNING: Cloudinary upload failed for {filename}: {ce}")
+
+                        # Backup to Google Drive (Legacy)
+                        drive_id = None
+                        if service:
+                            drive_id = drive_service.sync_photo_to_drive(service, dest_path, event_id)
+                        
+                        # Add to database with Cloudinary & Drive IDs
+                        if cloudinary_info:
+                            events_db.add_photo_with_cloudinary(
                                 event_id, filename, dest_path, 
-cloudinary_url=cloudinary_info['url'] if cloudinary_info else '',
-                                cloudinary_public_id=cloudinary_info['public_id'] if cloudinary_info else '',
-                                file_size=file_size,
+                                cloudinary_info['secure_url'], 
+                                cloudinary_info['public_id'], 
+                                file_size,
                                 drive_id=drive_id
                             )
                             uploaded_count += 1
@@ -1192,7 +1307,6 @@ def view_qr_code(event_id):
 if not os.path.exists(PHOTOS_DIR):
     os.makedirs(PHOTOS_DIR)
 
-@app.route('/api/events/<int:event_id>/photos', methods=['POST'])
 @app.route('/api/events/<int:event_id>/photos', methods=['POST'])
 @auth.login_required
 def upload_event_photos(event_id):
