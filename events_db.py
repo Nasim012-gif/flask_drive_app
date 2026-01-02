@@ -187,6 +187,17 @@ def get_event_photos(event_id):
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_photo(photo_id):
+    """Get a single photo by ID."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            'SELECT * FROM event_photos WHERE id = ?',
+            (photo_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
 def update_photo_drive_id(local_path, drive_file_id):
     """Update drive_file_id for a photo."""
     with get_db() as conn:

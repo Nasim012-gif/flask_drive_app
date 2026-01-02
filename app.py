@@ -792,6 +792,59 @@ def create_manual_event():
         # Don't sync to Google Drive for Cloudinary events
         print("Skipping Google Drive sync (Cloudinary event)")
         
+        # Process photos for face detection (async in background)
+        print("Starting face detection processing...")
+        try:
+            import face_detection_service
+            import face_db
+            from threading import Thread
+            
+            def process_faces():
+                """Background thread to process faces"""
+                try:
+                    photo_count = 0
+                    face_count = 0
+                    
+                    # Get all photos for this event
+                    photos = events_db.get_event_photos(event_id)
+                    
+                    for photo in photos:
+                        photo_id = photo['id']
+                        cloudinary_url = photo.get('cloudinary_url')
+                        
+                        if cloudinary_url:
+                            # Detect faces in this photo
+                            faces = face_detection_service.face_service.detect_faces(cloudinary_url)
+                            
+                            for face_data in faces:
+                                # Store embedding in database
+                                face_db.store_face_embedding(
+                                    event_id=event_id,
+                                    photo_id=photo_id,
+                                    embedding=face_data['embedding'],
+                                    face_location=face_data['location'],
+                                    confidence=face_data.get('confidence', 0)
+                                )
+                                face_count += 1
+                            
+                            photo_count += 1
+                            print(f"[FaceProcessing] Processed {photo_count}/{len(photos)} photos, found {face_count} faces")
+                    
+                    print(f"[FaceProcessing] Complete: {face_count} faces in {photo_count} photos")
+                except Exception as e:
+                    print(f"[FaceProcessing] Error: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # Start background processing
+            if face_detection_service.is_configured():
+                Thread(target=process_faces, daemon=True).start()
+                print("Face processing started in background")
+            else:
+                print("Face detection not configured, skipping")
+        except Exception as e:
+            print(f"Error starting face processing: {e}")
+        
         print("=== MANUAL EVENT CREATION SUCCESS ===")
         
         return jsonify({
@@ -901,20 +954,241 @@ def delete_event_route(event_id):
 def view_event(event_id):
     """Public event details page (for QR code redirect)."""
     # Don't sync - would overwrite Cloudinary events with Google Drive backup
+                                event_id, filename, dest_path, 
+cloudinary_url=cloudinary_info['url'] if cloudinary_info else '',
+                                cloudinary_public_id=cloudinary_info['public_id'] if cloudinary_info else '',
+                                file_size=file_size,
+                                drive_id=drive_id
+                            )
+                            uploaded_count += 1
+                            print(f"DEBUG: Successfully saved {filename} (Cloudinary: {cloudinary_info['public_id'] if cloudinary_info else 'N/A'}, Drive ID: {drive_id})")
+                        else:
+                            # Fallback for non-Cloudinary events or failed Cloudinary upload
+                            events_db.add_event_photo(event_id, filename, dest_path, drive_id)
+                            uploaded_count += 1
+                            print(f"DEBUG: Successfully saved {filename} (Drive ID: {drive_id})")
+
+            # Sync to Drive
+            maybe_sync_db('push')
+
+            return jsonify({
+                'status': 'success',
+                'message': f'Uploaded {uploaded_count} photos from ZIP',
+                'count': uploaded_count,
+                'cloud_sync_active': service is not None
+            })
+        finally:
+            # Clean up temp directory
+            shutil.rmtree(temp_extract_dir)
+
+    except Exception as e:
+        print(f"ERROR during ZIP upload: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/photos/<int:photo_id>', methods=['DELETE'])
+@auth.login_required
+def delete_event_photo(event_id, photo_id):
+    """Delete a specific photo from an event."""
+    maybe_sync_db('pull')
+    user = auth.get_current_user()
+    
+    try:
+        event = events_db.get_event(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+            
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to delete photos from this event'}), 403
+            
+        photo = events_db.get_photo(photo_id)
+        if not photo or photo['event_id'] != event_id:
+            return jsonify({'error': 'Photo not found in this event'}), 404
+            
+        # Delete from Cloudinary if it exists
+        if photo.get('cloudinary_public_id'):
+            try:
+                cloudinary_service.delete_photo(photo['cloudinary_public_id'])
+                print(f"DEBUG: Deleted Cloudinary photo {photo['cloudinary_public_id']}")
+            except Exception as ce:
+                print(f"WARNING: Failed to delete Cloudinary photo {photo['cloudinary_public_id']}: {ce}")
+
+        # Delete from Google Drive if it exists
+        if photo.get('drive_id'):
+            try:
+                service = drive_service.get_drive_service()
+                if service:
+                    drive_service.delete_file_from_drive(service, photo['drive_id'])
+                    print(f"DEBUG: Deleted Drive photo {photo['drive_id']}")
+            except Exception as de:
+                print(f"WARNING: Failed to delete Drive photo {photo['drive_id']}: {de}")
+
+        # Delete local file if it exists
+        if photo.get('local_path') and os.path.exists(photo['local_path']):
+            os.remove(photo['local_path'])
+            print(f"DEBUG: Deleted local photo {photo['local_path']}")
+            
+        # Delete from database
+        events_db.delete_photo(photo_id)
+        
+        # Sync to Drive
+        maybe_sync_db('push')
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Photo {photo_id} deleted successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/photos/<int:photo_id>/faces', methods=['GET'])
+def get_photo_faces(event_id, photo_id):
+    """Get detected faces for a specific photo."""
+    try:
+        faces = face_db.get_faces_for_photo(photo_id)
+        return jsonify({
+            'status': 'success',
+            'faces': faces
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/photos/<int:photo_id>/faces/<int:face_id>', methods=['DELETE'])
+@auth.login_required
+def delete_face_embedding(event_id, photo_id, face_id):
+    """Delete a specific face embedding."""
+    user = auth.get_current_user()
+    
+    try:
+        event = events_db.get_event(event_id)
+        if not event:
+            return jsonify({'error': 'Event not found'}), 404
+            
+        if event.get('user_id') != user['id']:
+            return jsonify({'error': 'Unauthorized to delete faces from this event'}), 403
+            
+        face_db.delete_face_embedding(face_id)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Face embedding {face_id} deleted successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/events/<int:event_id>/faces/match', methods=['POST'])
+def match_faces_in_event(event_id):
+    """
+    Endpoint to match faces in an event against a provided image.
+    Expects a 'photo' file in the request.
+    """
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo provided'}), 400
+
+    uploaded_photo = request.files['photo']
+    if uploaded_photo.filename == '':
+        return jsonify({'error': 'No selected photo'}), 400
+
+    try:
+        # Save the uploaded photo temporarily
+        temp_dir = tempfile.mkdtemp()
+        temp_photo_path = os.path.join(temp_dir, secure_filename(uploaded_photo.filename))
+        uploaded_photo.save(temp_photo_path)
+
+        try:
+            # Detect faces in the uploaded photo
+            uploaded_faces = face_detection_service.face_service.detect_faces(temp_photo_path)
+            if not uploaded_faces:
+                return jsonify({'message': 'No faces detected in the uploaded photo'}), 200
+
+            uploaded_face_embeddings = [f['embedding'] for f in uploaded_faces]
+
+            # Get all face embeddings for the event
+            event_faces = face_db.get_all_face_embeddings_for_event(event_id)
+            if not event_faces:
+                return jsonify({'message': 'No faces stored for this event'}), 200
+
+            # Perform matching
+            matches = []
+            for uploaded_emb in uploaded_face_embeddings:
+                for event_face in event_faces:
+                    distance = face_detection_service.face_service.compare_faces(uploaded_emb, event_face['embedding'])
+                    if distance < config.FACE_MATCH_THRESHOLD: # Use a configurable threshold
+                        matches.append({
+                            'photo_id': event_face['photo_id'],
+                            'face_id': event_face['id'],
+                            'distance': distance,
+                            'face_location': event_face['face_location']
+                        })
+            
+            # Group matches by photo_id and remove duplicates
+            matched_photos = {}
+            for match in matches:
+                photo_id = match['photo_id']
+                if photo_id not in matched_photos:
+                    matched_photos[photo_id] = {
+                        'photo_id': photo_id,
+                        'faces': []
+                    }
+                matched_photos[photo_id]['faces'].append({
+                    'face_id': match['face_id'],
+                    'distance': match['distance'],
+                    'face_location': match['face_location']
+                })
+            
+            # Get photo URLs for matched photos
+            result_photos = []
+            for photo_id, data in matched_photos.items():
+                photo_info = events_db.get_photo(photo_id)
+                if photo_info:
+                    result_photos.append({
+                        'photo_id': photo_id,
+                        'url': photo_info.get('cloudinary_url') or f'/api/photos/{photo_id}/view', # Fallback to local if no cloudinary
+                        'faces': data['faces']
+                    })
+
+            return jsonify({
+                'status': 'success',
+                'matched_photos': result_photos
+            })
+
+        finally:
+            # Clean up temporary photo
+            shutil.rmtree(temp_dir)
+
+    except Exception as e:
+        print(f"Error during face matching: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/photos/<int:photo_id>/view', methods=['GET'])
+def view_photo(photo_id):
+    """Serve a photo directly from the local filesystem."""
+    try:
+        photo = events_db.get_photo(photo_id)
+        if not photo or not photo.get('local_path') or not os.path.exists(photo['local_path']):
+            return jsonify({'error': 'Photo not found or not available locally'}), 404
+        
+        return send_file(photo['local_path'], mimetype='image/jpeg') # Assuming JPEG, adjust if needed
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/qr_code/<int:event_id>')
+def view_qr_code(event_id):
+    """Display the QR code for an event."""
     event = events_db.get_event(event_id)
     
     if not event:
         return render_template('error.html', message='Event not found'), 404
     
-    return render_template('event_view.html', event=event)
-
-
-# ============================================================================
-# FACE RECOGNITION ENDPOINTS
-# ============================================================================
-
-# Face recognition photo directory
-PHOTOS_DIR = config.EVENT_PHOTOS_DIR
 if not os.path.exists(PHOTOS_DIR):
     os.makedirs(PHOTOS_DIR)
 
