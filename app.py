@@ -759,7 +759,7 @@ def create_manual_event():
             events_db.add_photo_with_cloudinary(
                 event_id=event_id,
                 filename=f"{photo_id}.jpg",
-                local_path=None,
+                local_path='',  # Empty string instead of None
                 cloudinary_url=f"https://res.cloudinary.com/{os.getenv('CLOUDINARY_CLOUD_NAME')}/image/upload/{photo_id}",
                 cloudinary_public_id=photo_id,
                 file_size=0
