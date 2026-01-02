@@ -17,3 +17,4 @@ google-auth-httplib2>=0.2.0
 google-api-python-client>=2.110.0
 deepface==0.0.92
 opencv-python-headless==4.8.1.78
+keras>=3.0.0
