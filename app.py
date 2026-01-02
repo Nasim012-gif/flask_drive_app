@@ -962,6 +962,12 @@ def view_event(event_id):
     return render_template('event_view.html', event=event)
 
 
+# Face recognition photo directory
+PHOTOS_DIR = config.EVENT_PHOTOS_DIR
+if not os.path.exists(PHOTOS_DIR):
+    os.makedirs(PHOTOS_DIR)
+
+
 @app.route('/api/events/<int:event_id>/photos/zip', methods=['POST'])
 @auth.login_required
 def upload_event_photos_zip(event_id):
