@@ -536,15 +536,18 @@
             const grid = document.getElementById('photosGrid');
             grid.innerHTML = '';
 
-            foundPhotos.forEach(url => {
+            foundPhotos.forEach(photo => {
+                // photo is an object: {photo_id, url, similarity, confidence}
+                const photoUrl = photo.url || photo;
+
                 // Create visible image
                 const img = document.createElement('img');
-                img.src = url;
+                img.src = photoUrl;
                 img.className = 'preview-img';
 
                 // Wrap in download link
                 const link = document.createElement('a');
-                link.href = url;
+                link.href = photoUrl;
                 link.download = ''; // Trigger download
                 link.appendChild(img);
                 grid.appendChild(link);
