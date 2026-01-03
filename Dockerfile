@@ -22,9 +22,9 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
-# Install in specific order to avoid conflicts
+# Install TensorFlow 2.15.0 specifically (verified to exist)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir tensorflow>=2.16.0,<2.17.0 && \
+    pip install --no-cache-dir tensorflow==2.15.0 tf-keras==2.15.0 && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
