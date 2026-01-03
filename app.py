@@ -802,13 +802,22 @@ def create_manual_event():
             def process_faces():
                 """Background thread to process faces"""
                 try:
+                    import gc  # For garbage collection
                     photo_count = 0
                     face_count = 0
+                    MAX_PHOTOS = 50  # Limit to prevent memory issues
                     
                     # Get all photos for this event
                     photos = events_db.get_event_photos(event_id)
+                    total_photos = len(photos)
                     
-                    for photo in photos:
+                    # Limit number of photos to process
+                    photos_to_process = photos[:MAX_PHOTOS]
+                    
+                    print(f"[FaceProcessing] Processing {len(photos_to_process)} of {total_photos} photos")
+                    
+                    for photo in photos_to_process:
+                        try:
                         photo_id = photo['id']
                         cloudinary_url = photo.get('cloudinary_url')
                         
@@ -828,7 +837,17 @@ def create_manual_event():
                                 face_count += 1
                             
                             photo_count += 1
-                            print(f"[FaceProcessing] Processed {photo_count}/{len(photos)} photos, found {face_count} faces")
+                            
+                            # Force garbage collection after each photo to free memory
+                            gc.collect()
+                            
+                            # Log progress every 10 photos
+                            if photo_count % 10 == 0:
+                                print(f"[FaceProcessing] Progress: {photo_count}/{len(photos_to_process)} photos, {face_count} faces found")
+                    
+                        except Exception as photo_error:
+                            print(f"[FaceProcessing] Error processing photo: {photo_error}")
+                            continue  # Skip this photo and continue with others
                     
                     print(f"[FaceProcessing] Complete: {face_count} faces in {photo_count} photos")
                 except Exception as e:
