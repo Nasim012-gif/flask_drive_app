@@ -33,9 +33,10 @@ COPY . .
 # Expose port (Railway sets this via $PORT)
 EXPOSE 8080
 
-# Run gunicorn with settings optimized for ML workload
-CMD gunicorn -w 2 -b 0.0.0.0:$PORT app:app \
+# Run gunicorn with 1 worker to minimize memory usage (optimized for Railway free tier)
+CMD gunicorn -w 1 -b 0.0.0.0:$PORT app:app \
     --timeout 300 \
     --worker-class sync \
-    --max-requests 1000 \
-    --max-requests-jitter 50
+    --max-requests 500 \
+    --max-requests-jitter 50 \
+    --worker-tmp-dir /dev/shm
