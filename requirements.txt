@@ -15,5 +15,6 @@ google-auth>=2.25.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 google-api-python-client>=2.110.0
-face-recognition>=1.3.0
-cmake>=3.25.0
+deepface==0.0.92
+tensorflow>=2.16.0,<2.17.0
+opencv-python-headless>=4.8
