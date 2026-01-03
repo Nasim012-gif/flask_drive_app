@@ -1,14 +1,13 @@
 FROM python:3.10-slim
 
-# Install system dependencies
+# Install system dependencies needed for face-recognition and dlib
 RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
     libopenblas-dev \
     liblapack-dev \
-    libx11-dev \
-    libgtk-3-dev \
-    libboost-python-dev \
+    libjpeg-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -18,13 +17,17 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Install Python dependencies
+# Install dlib first (it's a dependency of face-recognition)
+RUN pip install --no-cache-dir dlib==19.24.0
+
+# Then install remaining dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Expose port
+# Expose port (Railway sets this via $PORT)
 EXPOSE 8080
 
-# Run gunicorn
-CMD gunicorn -w 4 -b 0.0.0.0:$PORT app:app --timeout 120
+# Run gunicorn with higher timeout for face processing
+CMD gunicorn -w 4 -b 0.0.0.0:$PORT app:app --timeout 300 --worker-class sync
