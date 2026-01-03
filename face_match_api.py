@@ -1,10 +1,11 @@
 """
-Face Matching API Endpoint
+Face Matching API Endpoint - Updated for face-recognition library
 """
 
 from flask import jsonify, request
 import tempfile
 import os
+import numpy as np
 
 
 def create_face_match_endpoint(app, events_db):
@@ -27,6 +28,8 @@ def create_face_match_endpoint(app, events_db):
             # Import services
             import face_detection_service
             import face_db
+            import face_recognition
+            from PIL import Image
             
             # Check if face detection is available
             if not face_detection_service.is_configured():
@@ -46,30 +49,31 @@ def create_face_match_endpoint(app, events_db):
             try:
                 # Detect face in selfie
                 print("[Match] Detecting face in selfie...")
-                from deepface import DeepFace
+                
+                # Load image
+                image = Image.open(temp_path)
+                if image.mode != 'RGB':
+                    image = image.convert('RGB')
+                image_np = np.array(image)
                 
                 # Extract face embedding from selfie
                 try:
-                    embeddings = DeepFace.represent(
-                        img_path=temp_path,
-                        model_name='Facenet512',
-                        enforce_detection=True
-                    )
+                    face_encodings = face_recognition.face_encodings(image_np)
                     
-                    if not embeddings or len(embeddings) == 0:
+                    if not face_encodings or len(face_encodings) == 0:
                         return jsonify({
                             'status': 'no_face',
-                            'message': 'No face detected in selfie'
+                            'message': 'No face detected in selfie. Please try again with better lighting.'
                         }), 200
                     
-                    guest_embedding = embeddings[0]['embedding']
+                    guest_embedding = face_encodings[0].tolist()
                     print("[Match] Guest face detected")
                     
                 except Exception as e:
                     print(f"[Match] Face detection failed: {e}")
                     return jsonify({
                         'status': 'no_face',
-                        'message': 'Could not detect face in selfie'
+                        'message': 'Could not detect face in selfie. Please try again.'
                     }), 200
                 
                 # Get all face embeddings for this event
@@ -90,10 +94,12 @@ def create_face_match_endpoint(app, events_db):
                     threshold=0.6  # Adjust for sensitivity
                 )
                 
+                print(f"[Match] Found {len(matches)} potential matches")
+                
                 if not matches:
                     return jsonify({
                         'status': 'no_match',
-                        'message': 'No matching photos found'
+                        'message': 'No matching photos found. Try with a clearer selfie or different angle.'
                     }), 200
                 
                 # Get photo details for matches
@@ -108,7 +114,7 @@ def create_face_match_endpoint(app, events_db):
                             'confidence': match['confidence']
                         })
                 
-                print(f"[Match] Found {len(matched_photos)} matching photos")
+                print(f"[Match] Returning {len(matched_photos)} matching photos")
                 
                 return jsonify({
                     'status': 'success',
@@ -129,3 +135,4 @@ def create_face_match_endpoint(app, events_db):
             return jsonify({'error': str(e)}), 500
     
     return match_face
+

@@ -1760,7 +1760,16 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 
+# Register face matching endpoint
+try:
+    from face_match_api import create_face_match_endpoint
+    match_face_endpoint = create_face_match_endpoint(app, events_db)
+    print("[Init] Face matching endpoint registered")
+except Exception as e:
+    print(f"[Init] Could not register face matching endpoint: {e}")
+
 if __name__ == '__main__':
+
     # Check if credentials file exists
     if not os.path.exists(config.CREDENTIALS_FILE):
         print("\n" + "="*70)
