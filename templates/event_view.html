@@ -494,7 +494,7 @@
             formData.append('selfie', blob, 'selfie.jpg');
 
             try {
-                const response = await fetch('/api/events/{{ event.id }}/find_me', {
+                const response = await fetch('/api/events/{{ event.id }}/match', {
                     method: 'POST',
                     body: formData
                 });
