@@ -48,12 +48,20 @@ def get_event_face_embeddings(event_id):
                 embedding = pickle.loads(embedding_blob)
                 face_location = json.loads(location_json) if location_json else {}
                 
-                results.append((photo_id, embedding, face_location))
+                # Return as dict for compatibility with face_detection_service
+                results.append({
+                    'photo_id': photo_id,
+                    'embedding': embedding,
+                    'face_location': face_location,
+                    'confidence': 1.0
+                })
             
             print(f"[DB] Retrieved {len(results)} face embeddings for event {event_id}")
             return results
     except Exception as e:
         print(f"[DB] Error retrieving face embeddings: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 
