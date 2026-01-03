@@ -818,33 +818,33 @@ def create_manual_event():
                     
                     for photo in photos_to_process:
                         try:
-                        photo_id = photo['id']
-                        cloudinary_url = photo.get('cloudinary_url')
+                            photo_id = photo['id']
+                            cloudinary_url = photo.get('cloudinary_url')
+                            
+                            if cloudinary_url:
+                                # Detect faces in this photo
+                                faces = face_detection_service.face_service.detect_faces(cloudinary_url)
+                                
+                                for face_data in faces:
+                                    # Store embedding in database
+                                    face_db.store_face_embedding(
+                                        event_id=event_id,
+                                        photo_id=photo_id,
+                                        embedding=face_data['embedding'],
+                                        face_location=face_data['location'],
+                                        confidence=face_data.get('confidence', 0)
+                                    )
+                                    face_count += 1
+                                
+                                photo_count += 1
+                                
+                                # Force garbage collection after each photo to free memory
+                                gc.collect()
+                                
+                                # Log progress every 10 photos
+                                if photo_count % 10 == 0:
+                                    print(f"[FaceProcessing] Progress: {photo_count}/{len(photos_to_process)} photos, {face_count} faces found")
                         
-                        if cloudinary_url:
-                            # Detect faces in this photo
-                            faces = face_detection_service.face_service.detect_faces(cloudinary_url)
-                            
-                            for face_data in faces:
-                                # Store embedding in database
-                                face_db.store_face_embedding(
-                                    event_id=event_id,
-                                    photo_id=photo_id,
-                                    embedding=face_data['embedding'],
-                                    face_location=face_data['location'],
-                                    confidence=face_data.get('confidence', 0)
-                                )
-                                face_count += 1
-                            
-                            photo_count += 1
-                            
-                            # Force garbage collection after each photo to free memory
-                            gc.collect()
-                            
-                            # Log progress every 10 photos
-                            if photo_count % 10 == 0:
-                                print(f"[FaceProcessing] Progress: {photo_count}/{len(photos_to_process)} photos, {face_count} faces found")
-                    
                         except Exception as photo_error:
                             print(f"[FaceProcessing] Error processing photo: {photo_error}")
                             continue  # Skip this photo and continue with others
